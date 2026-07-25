@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12131A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>TL-1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Palette from the track: night boards, sprinters' line red, stayers'
+   line blue, pine for type. */
+:root{
+  --board:#12131A; --panel:#1B1D27; --panel-2:#22252F; --rail:#3A3F4E;
+  --pine:#E8DCC8; --pine-dim:#9A9284;
+  --sprint:#E23B3B;   /* speed */
+  --stayer:#4A8FE7;   /* cadence */
+  --watt:#E0A93B;     /* power */
+  --ok:#5BC17F; --warn:#E0A93B;
+  --f-num:"Barlow Condensed",Impact,sans-serif;
+  --f-ui:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--board);color:var(--pine);
+  font-family:var(--f-ui);font-size:15px;line-height:1.45;
+  display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  -webkit-text-size-adjust:100%;
+}
+.bar{display:flex;align-items:center;gap:14px;padding:10px 16px;
+  border-bottom:1px solid var(--rail);flex:0 0 auto}
+.wordmark{font-family:var(--f-num);font-weight:700;font-size:26px;
+  letter-spacing:.06em;text-transform:uppercase;line-height:1}
+.wordmark span{color:var(--sprint)}
+.state{display:flex;align-items:center;gap:7px;font-size:12px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--pine-dim)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--rail);flex:0 0 auto}
+.dot.live{background:var(--ok)} .dot.busy{background:var(--warn)}
+.spacer{margin-left:auto}
+
+button{font-family:var(--f-ui);font-size:14px;font-weight:500;color:var(--pine);
+  background:var(--panel-2);border:1px solid var(--rail);border-radius:7px;
+  padding:11px 15px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:hover:not(:disabled){border-color:var(--pine-dim)}
+button:focus-visible{outline:2px solid var(--stayer);outline-offset:2px}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.primary{background:var(--sprint);border-color:var(--sprint);color:#fff;font-weight:600}
+button.on{background:var(--pine);border-color:var(--pine);color:var(--board);font-weight:600}
+button.small{padding:8px 11px;font-size:13px}
+button.danger{border-color:var(--sprint);color:var(--sprint)}
+
+/* readout sits on the graph's top edge like a trackside board */
+.readout{display:grid;grid-template-columns:repeat(4,1fr);
+  border-bottom:1px solid var(--rail);flex:0 0 auto}
+.cell{padding:12px 16px 10px;border-right:1px solid var(--rail);min-width:0}
+.cell:last-child{border-right:0}
+.val{font-family:var(--f-num);font-weight:600;font-size:clamp(34px,10vw,58px);
+  line-height:.88;letter-spacing:-.01em;font-variant-numeric:tabular-nums;display:block}
+.cell.s .val{color:var(--sprint)} .cell.c .val{color:var(--stayer)}
+.cell.p .val{color:var(--watt)}   .cell.g .val{color:var(--pine)}
+.unit{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--pine-dim);display:block;margin-top:5px}
+
+.plot{position:relative;flex:1 1 auto;min-height:180px;background:var(--board)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.plot-tools{position:absolute;top:10px;right:10px;display:flex;gap:6px}
+.plot-tools button{padding:7px 11px;font-size:13px;background:rgba(27,29,39,.88)}
+.legend{position:absolute;top:12px;left:14px;display:flex;gap:14px;font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--pine-dim);pointer-events:none}
+.legend i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:5px}
+.plot-badge{position:absolute;bottom:10px;left:14px;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--pine-dim);pointer-events:none}
+.plot-badge b{color:var(--pine);font-weight:600}
+
+.controls{border-top:1px solid var(--rail);padding:12px 16px;
+  display:flex;flex-direction:column;gap:11px;flex:0 0 auto}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--pine-dim);flex:0 0 auto;width:58px}
+.gears{display:flex;gap:6px;flex-wrap:wrap}
+.gears button{font-family:var(--f-num);font-size:19px;font-weight:600;
+  padding:9px 13px;min-width:66px}
+.gears button b{display:block;font-family:var(--f-ui);font-size:9px;font-weight:500;
+  letter-spacing:.11em;color:var(--pine-dim);margin-top:2px}
+.gears button.on b{color:rgba(18,19,26,.65)}
+input[type=text]{font-family:var(--f-ui);font-size:14px;color:var(--pine);
+  background:var(--panel-2);border:1px solid var(--rail);border-radius:7px;
+  padding:11px 13px;width:120px}
+input[type=text]:focus{outline:2px solid var(--stayer);outline-offset:1px}
+.hint{font-size:12px;color:var(--pine-dim)}
+
+/* flash panel */
+.flash{border-top:1px solid var(--rail);padding:12px 16px;flex:0 0 auto;
+  display:flex;flex-direction:column;gap:10px}
+.gauge{height:6px;background:var(--panel-2);border:1px solid var(--rail);
+  border-radius:3px;overflow:hidden}
+.gauge i{display:block;height:100%;width:0;background:var(--stayer)}
+.sessions{display:flex;gap:6px;flex-wrap:wrap}
+.sessions button{font-size:12.5px;padding:8px 11px;text-align:left}
+.sessions button small{display:block;color:var(--pine-dim);font-size:10.5px;
+  letter-spacing:.06em;margin-top:2px}
+.sessions button.on small{color:rgba(18,19,26,.65)}
+
+details{border-top:1px solid var(--rail);flex:0 0 auto}
+summary{padding:10px 16px;cursor:pointer;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--pine-dim)}
+#log{font-family:var(--f-mono);font-size:11.5px;line-height:1.6;
+  background:var(--panel);color:var(--pine-dim);max-height:170px;overflow:auto;
+  padding:10px 16px 14px;white-space:pre-wrap;word-break:break-all;margin:0}
+#log .mk{color:var(--pine)} #log .er{color:var(--sprint)}
+
+.notice{margin:0;padding:14px 16px;background:var(--panel);
+  border-bottom:1px solid var(--rail);font-size:13.5px;color:var(--pine-dim)}
+.notice strong{color:var(--pine);font-weight:600}
+.notice code{font-family:var(--f-mono);font-size:12.5px;color:var(--pine)}
+.hide{display:none!important}
+
+@media (max-width:560px){
+  .readout{grid-template-columns:repeat(2,1fr)}
+  .cell{border-bottom:1px solid var(--rail)}
+  .cell:nth-child(2){border-right:0}
+  .cell:nth-child(n+3){border-bottom:0}
+  .tag{width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="wordmark">TL<span>&ndash;</span>1</div>
+  <div class="state"><span class="dot" id="dot"></span><span id="stateTxt">Not connected</span></div>
+  <div class="spacer"></div>
+  <button id="btnConnect" class="primary">Connect</button>
+</div>
+
+<p class="notice" id="notice"></p>
+
+<div class="readout">
+  <div class="cell s"><span class="val" id="vSpeed">&ndash;&ndash;</span><span class="unit">km/h</span></div>
+  <div class="cell c"><span class="val" id="vCad">&ndash;&ndash;</span><span class="unit">cadence rpm</span></div>
+  <div class="cell p"><span class="val" id="vPwr">&ndash;&ndash;</span><span class="unit">watts</span></div>
+  <div class="cell g"><span class="val" id="vRatio">&ndash;&ndash;</span><span class="unit" id="uRatio">measured gear</span></div>
+</div>
+
+<div class="plot">
+  <canvas id="cv"></canvas>
+  <div class="legend">
+    <span><i style="background:var(--sprint)"></i>speed</span>
+    <span><i style="background:var(--stayer)"></i>cadence</span>
+  </div>
+  <div class="plot-badge" id="badge"><b>Live</b></div>
+  <div class="plot-tools">
+    <button id="btnOut" title="Show more time">&minus;</button>
+    <button id="btnIn" title="Show less time">&plus;</button>
+    <button id="btnFollow" class="on">Follow</button>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="row">
+    <button id="btnRec" class="primary" disabled>Record</button>
+    <button id="btnMark" disabled>Mark</button>
+    <div class="spacer"></div>
+    <button id="btnSave" disabled>Save CSV</button>
+  </div>
+  <div class="row">
+    <span class="tag">Gear</span>
+    <div class="gears" id="gears"></div>
+  </div>
+  <div class="row">
+    <span class="tag">Section</span>
+    <input type="text" id="secName" placeholder="set1" autocomplete="off" spellcheck="false">
+    <button id="btnSec" class="small" disabled>Start section</button>
+    <span id="secNow" class="hint"></span>
+  </div>
+</div>
+
+<div class="flash">
+  <div class="row">
+    <span class="tag">Flash</span>
+    <span class="hint" id="flashTxt">not read yet</span>
+    <div class="spacer"></div>
+    <button id="btnFree"  class="small" disabled>Refresh</button>
+    <button id="btnTail"  class="small" disabled>Load last 32 KB</button>
+    <button id="btnDump"  class="small" disabled>Load all</button>
+    <button id="btnErase" class="small danger" disabled>Erase</button>
+  </div>
+  <div class="gauge"><i id="gaugeFill"></i></div>
+  <div class="sessions hide" id="sessions"></div>
+  <div class="row hide" id="reviewRow">
+    <span class="hint" id="reviewTxt"></span>
+    <div class="spacer"></div>
+    <button id="btnBackLive" class="small">Back to live</button>
+  </div>
+</div>
+
+<details>
+  <summary>Stream</summary>
+  <pre id="log"></pre>
+</details>
+
+<script>
+"use strict";
+
+/* Nordic UART Service, as advertised by the logger's Bluefruit BLEUart */
+const NUS    = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";  // we write
+const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";  // logger notifies
+
+/* Must match the GEARS[] table in tl1_logger.ino */
+const GEARS = [
+  {n:1, cr:46, cog:16}, {n:2, cr:63, cog:18}, {n:3, cr:65, cog:15},
+  {n:4, cr:63, cog:14}, {n:5, cr:63, cog:13},
+];
+
+const $ = id => document.getElementById(id);
+const el = {
+  dot:$("dot"), state:$("stateTxt"), notice:$("notice"), connect:$("btnConnect"),
+  rec:$("btnRec"), mark:$("btnMark"), save:$("btnSave"), sec:$("btnSec"),
+  secName:$("secName"), secNow:$("secNow"), gears:$("gears"),
+  out:$("btnOut"), in:$("btnIn"), follow:$("btnFollow"), badge:$("badge"),
+  speed:$("vSpeed"), cad:$("vCad"), pwr:$("vPwr"), ratio:$("vRatio"),
+  log:$("log"), cv:$("cv"),
+  free:$("btnFree"), tail:$("btnTail"), dump:$("btnDump"), erase:$("btnErase"),
+  flashTxt:$("flashTxt"), gaugeFill:$("gaugeFill"),
+  sessions:$("sessions"), reviewRow:$("reviewRow"), reviewTxt:$("reviewTxt"),
+  backLive:$("btnBackLive"),
+};
+
+/* ═══ state ══════════════════════════════════════════════════════════════ */
+let dev=null, rxChar=null, txChar=null;
+let recording=false, curGear=null;
+
+// Two independent traces. Imported sessions restart their clock at zero,
+// so mixing them into the live trace would scramble the time axis.
+const liveTrace   = { samples:[], markers:[], raw:[] };
+let   reviewTrace = null;
+let   mode = "live";
+
+let importing=false, importExpected=0, importGot=0, importText="";
+let flashUsed=null, flashTotal=null;
+
+let follow=true, viewSpan=120, viewEnd=0, cursor=null, dirty=true;
+
+const trace = () => (mode === "review" && reviewTrace) ? reviewTrace : liveTrace;
+
+/* ═══ environment ════════════════════════════════════════════════════════ */
+(function checkEnv(){
+  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+  if(!navigator.bluetooth){
+    el.connect.disabled = true;
+    el.notice.innerHTML = iOS
+      ? "<strong>This browser can't reach Bluetooth.</strong> Safari and Chrome on iOS don't implement Web Bluetooth. Open this page in <strong>Bluefy</strong> from the App Store and it will work."
+      : "<strong>This browser can't reach Bluetooth.</strong> Use Chrome, Edge or Opera on desktop or Android, served over <code>https://</code> or from <code>localhost</code>.";
+    return;
+  }
+  if(!window.isSecureContext){
+    el.connect.disabled = true;
+    el.notice.innerHTML = "<strong>Insecure page.</strong> Web Bluetooth needs <code>https://</code> or <code>localhost</code>. Host this on GitHub Pages, or run <code>python3 -m http.server</code> and open <code>localhost:8000</code>.";
+    return;
+  }
+  el.notice.classList.add("hide");
+})();
+
+/* ═══ gear buttons ═══════════════════════════════════════════════════════ */
+GEARS.forEach(g=>{
+  const b=document.createElement("button");
+  b.innerHTML = `${g.cr}&times;${g.cog}<b>${(g.cr/g.cog).toFixed(3)}</b>`;
+  b.disabled = true; b.dataset.gear = g.n;
+  b.onclick = ()=>{ send("gear "+g.n); setGear(g.n); };
+  el.gears.appendChild(b);
+});
+function setGear(n){
+  curGear=n;
+  [...el.gears.children].forEach(b=>b.classList.toggle("on", +b.dataset.gear===n));
+}
+
+/* ═══ log pane ═══════════════════════════════════════════════════════════ */
+function log(txt, cls){
+  const s=document.createElement("span");
+  if(cls) s.className=cls;
+  s.textContent=txt+"\n";
+  el.log.appendChild(s);
+  while(el.log.childNodes.length>500) el.log.removeChild(el.log.firstChild);
+  el.log.scrollTop=el.log.scrollHeight;
+}
+
+/* ═══ connection ═════════════════════════════════════════════════════════ */
+function setState(txt, cls){ el.state.textContent=txt; el.dot.className="dot"+(cls?" "+cls:""); }
+function setLinked(on){
+  [el.rec,el.mark,el.sec,el.free,el.tail,el.dump,el.erase]
+    .forEach(b=>b.disabled=!on);
+  [...el.gears.children].forEach(b=>b.disabled=!on);
+  el.connect.textContent = on ? "Disconnect" : "Connect";
+}
+
+el.connect.onclick = async ()=>{
+  if(dev && dev.gatt.connected){ dev.gatt.disconnect(); return; }
+  try{
+    setState("Choosing device…","busy");
+    dev = await navigator.bluetooth.requestDevice({
+      filters:[{namePrefix:"TL-1"},{services:[NUS]}], optionalServices:[NUS]
+    });
+    dev.addEventListener("gattserverdisconnected", onDrop);
+    await open();
+  }catch(e){
+    setState("Not connected");
+    if(e && e.name!=="NotFoundError") log("connect: "+e.message,"er");
+  }
+};
+
+async function open(){
+  setState("Connecting…","busy");
+  const gatt = await dev.gatt.connect();
+  const svc  = await gatt.getPrimaryService(NUS);
+  rxChar = await svc.getCharacteristic(NUS_RX);
+  txChar = await svc.getCharacteristic(NUS_TX);
+  txChar.addEventListener("characteristicvaluechanged", onData);
+  await txChar.startNotifications();
+  setState("Connected","live");
+  setLinked(true);
+  log("— linked to "+(dev.name||"TL-1")+" —","mk");
+  send("status"); send("free");
+}
+
+function onDrop(){
+  setState("Link lost","busy"); setLinked(false);
+  log("— link lost, retrying —","er");
+  let tries=0;
+  const again=async()=>{
+    if(!dev || dev.gatt.connected) return;
+    if(++tries>20){ setState("Not connected"); log("— gave up reconnecting —","er"); return; }
+    try{ await open(); }catch(e){ setTimeout(again,1500); }
+  };
+  setTimeout(again,1200);
+}
+
+/* ═══ send ═══════════════════════════════════════════════════════════════ */
+const enc=new TextEncoder();
+async function send(cmd){
+  if(!rxChar) return;
+  try{ await rxChar.writeValue(enc.encode(cmd+"\n")); log("› "+cmd,"mk"); }
+  catch(e){ log("send failed: "+e.message,"er"); }
+}
+
+/* ═══ receive ════════════════════════════════════════════════════════════ */
+const dec=new TextDecoder();
+let buf="";
+function onData(ev){
+  buf += dec.decode(ev.target.value);
+  let i;
+  while((i=buf.indexOf("\n"))>=0){
+    const line=buf.slice(0,i).replace(/\r$/,"");
+    buf=buf.slice(i+1);
+    handleLine(line);
+  }
+}
+
+function parseSample(f){
+  return { t:+f[0], section:f[1], gear:f[2], speed:+f[3], cad:+f[4], pwr:+f[5],
+           wheelRev:+f[6], wheelEvt:+f[7], crankRev:+f[8], crankEvt:+f[9],
+           ratio:+f[10] };
+}
+
+function handleLine(line){
+  /* ---- flash usage, from `free` or `status` ---- */
+  const fu = line.match(/(\d+) of (\d+) bytes/);
+  if(fu){ flashUsed=+fu[1]; flashTotal=+fu[2]; paintFlash(); }
+
+  /* ---- bulk import framing ---- */
+  if(/^# BEGIN/.test(line)){
+    const n = line.match(/(\d+) bytes/);
+    importing=true; importExpected = n?+n[1]:0; importGot=0; importText="";
+    el.flashTxt.textContent = "loading…";
+    log(line,"mk");
+    return;
+  }
+  if(importing){
+    if(/^# END/.test(line)){
+      importing=false;
+      log(`# END, ${importGot} bytes received`,"mk");
+      finishImport();
+      return;
+    }
+    importGot += line.length + 1;
+    importText += line + "\n";
+    if(importExpected)
+      el.flashTxt.textContent =
+        `loading ${(100*importGot/importExpected).toFixed(0)}% (${importGot} of ${importExpected} B)`;
+    return;
+  }
+
+  /* ---- live markers ---- */
+  if(line[0]==="#"){
+    log(line,"mk");
+    const t = liveTrace.samples.length ? liveTrace.samples[liveTrace.samples.length-1].t : 0;
+    if(/^# SESSION START/.test(line)){
+      liveTrace.samples.length=0; liveTrace.markers.length=0; liveTrace.raw.length=0;
+      liveTrace.raw.push(line);
+      recording=true; syncRec(); backToLive();
+      liveTrace.markers.push({t:0,kind:"session",text:"start"});
+    } else if(/^# SESSION STOP/.test(line)){
+      recording=false; syncRec();
+      liveTrace.raw.push(line);
+      send("free");                      // refresh usage after a session
+    } else {
+      liveTrace.raw.push(line);
+      const m=line.match(/^# (SECTION|GEAR|MARK)\s+(\S*)/);
+      if(m){
+        const tm=line.match(/t=([\d.]+)s/);
+        liveTrace.markers.push({
+          t: tm?parseFloat(tm[1]):t, kind:m[1].toLowerCase(),
+          text: m[1]==="GEAR" ? (line.match(/(\d+x\d+)/)?.[1]||"none") : m[2]
+        });
+        if(m[1]==="SECTION"){ el.secNow.textContent="now: "+m[2]; }
+      }
+    }
+    dirty=true;
+    return;
+  }
+
+  /* ---- column header ---- */
+  if(/^t_s,/.test(line)){ liveTrace.raw.push(line); log(line); return; }
+
+  /* ---- live sample ---- */
+  const f=line.split(",");
+  if(f.length>=11 && !isNaN(parseFloat(f[0]))){
+    const s=parseSample(f);
+    liveTrace.samples.push(s); liveTrace.raw.push(line);
+    if(liveTrace.samples.length>200000) liveTrace.samples.shift();
+    el.save.disabled=false;
+    if(mode==="live"){ paintReadout(s); if(follow) viewEnd=s.t; dirty=true; }
+    if(!recording){ recording=true; syncRec(); }
+    return;
+  }
+
+  /* ---- idle status line ---- */
+  if(line) log(line);
+  const m=line.match(/spd=([\d.]+).*?cad=([\d.]+).*?P=(-?\d+)W.*?ratio=([\d.]+)/);
+  if(m && mode==="live") paintReadout({speed:+m[1],cad:+m[2],pwr:+m[3],ratio:+m[4]});
+}
+
+function paintReadout(s){
+  el.speed.textContent = s.speed.toFixed(1);
+  el.cad.textContent   = Math.round(s.cad);
+  el.pwr.textContent   = Math.round(s.pwr);
+  if(s.ratio>0.5){
+    el.ratio.textContent = s.ratio.toFixed(3);
+    const best = GEARS.reduce((a,g)=>{
+      const e=Math.abs(s.ratio-g.cr/g.cog)/(g.cr/g.cog);
+      return e<a.e?{e,g}:a;
+    },{e:9,g:null});
+    $("uRatio").textContent = best.e<=0.025
+      ? `measured \u2014 ${best.g.cr}\u00d7${best.g.cog}` : "measured gear";
+  }else{
+    el.ratio.textContent="\u2013\u2013"; $("uRatio").textContent="measured gear";
+  }
+}
+
+/* ═══ flash panel ════════════════════════════════════════════════════════ */
+function paintFlash(){
+  if(flashUsed===null){ el.flashTxt.textContent="not read yet"; return; }
+  const kb = v => (v/1024).toFixed(0);
+  const pct = flashTotal ? (100*flashUsed/flashTotal) : 0;
+  // 62 bytes per line at 4 Hz is the logger's own figure
+  const mins = ((flashTotal-flashUsed) / (62*4)) / 60;
+  el.flashTxt.textContent =
+    `${kb(flashUsed)} of ${kb(flashTotal)} KB used (${pct.toFixed(1)}%) · about ${mins.toFixed(0)} min free`;
+  el.gaugeFill.style.width = Math.min(100,pct).toFixed(2)+"%";
+  el.gaugeFill.style.background = pct>90 ? "var(--sprint)" : "var(--stayer)";
+}
+
+/* Split imported text into sessions. A `tail` starts mid-log, so the
+   first chunk is usually a fragment; it is kept and labelled as one. */
+function parseSessions(text){
+  const out=[]; let cur=null;
+  const startNew = header => { cur={header, samples:[], markers:[], raw:[]}; out.push(cur); };
+  for(const raw of text.split("\n")){
+    const line=raw.trim();
+    if(!line) continue;
+    if(/^# SESSION START/.test(line)){ startNew(line); cur.raw.push(line); continue; }
+    if(!cur) startNew(null);                       // fragment before first START
+    cur.raw.push(line);
+    if(/^t_s,/.test(line)) continue;
+    if(line[0]==="#"){
+      const m=line.match(/^# (SECTION|GEAR|MARK)\s+(\S*)/);
+      if(m){
+        const tm=line.match(/t=([\d.]+)s/);
+        cur.markers.push({ t: tm?parseFloat(tm[1]):0, kind:m[1].toLowerCase(),
+          text: m[1]==="GEAR" ? (line.match(/(\d+x\d+)/)?.[1]||"none") : m[2] });
+      }
+      continue;
+    }
+    const f=line.split(",");
+    if(f.length>=11 && !isNaN(parseFloat(f[0]))) cur.samples.push(parseSample(f));
+  }
+  return out.filter(s=>s.samples.length>1);
+}
+
+function finishImport(){
+  const sessions = parseSessions(importText);
+  paintFlash();
+  el.sessions.innerHTML="";
+  if(!sessions.length){
+    el.sessions.classList.add("hide");
+    log("no complete sessions in that data","er");
+    return;
+  }
+  el.sessions.classList.remove("hide");
+  sessions.forEach((s,i)=>{
+    const dur = s.samples[s.samples.length-1].t - s.samples[0].t;
+    const top = Math.max(...s.samples.map(x=>x.speed));
+    const gear = s.header ? (s.header.match(/gear=(\S+)/)?.[1] || "-") : "-";
+    const b=document.createElement("button");
+    b.innerHTML = `${s.header ? "Session "+(i+1) : "Fragment"}` +
+      `<small>${dur.toFixed(0)} s · ${s.samples.length} pts · top ${top.toFixed(1)} km/h · gear ${gear}</small>`;
+    b.onclick = ()=>{
+      reviewTrace = s; mode="review";
+      [...el.sessions.children].forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+      el.reviewRow.classList.remove("hide");
+      el.reviewTxt.textContent =
+        `Reviewing ${s.header?"session "+(i+1):"fragment"} — ${s.samples.length} samples from flash`;
+      el.badge.innerHTML = "<b>Review</b>";
+      viewSpan = Math.max(10, dur*1.05);
+      viewEnd  = s.samples[s.samples.length-1].t;
+      follow=false; el.follow.classList.remove("on");
+      el.save.disabled=false;
+      dirty=true;
+    };
+    el.sessions.appendChild(b);
+  });
+  log(`${sessions.length} session(s) parsed — pick one to plot`,"mk");
+}
+
+function backToLive(){
+  mode="live"; reviewTrace=null;
+  el.reviewRow.classList.add("hide");
+  [...el.sessions.children].forEach(x=>x.classList.remove("on"));
+  el.badge.innerHTML="<b>Live</b>";
+  follow=true; el.follow.classList.add("on");
+  if(liveTrace.samples.length) viewEnd=liveTrace.samples[liveTrace.samples.length-1].t;
+  dirty=true;
+}
+el.backLive.onclick = backToLive;
+
+el.free.onclick  = ()=> send("free");
+el.tail.onclick  = ()=> send("tail 32");
+el.dump.onclick  = ()=>{
+  const kb = flashUsed ? (flashUsed/1024).toFixed(0) : "?";
+  if(confirm(`Load the whole log (${kb} KB)?\n\nOver Bluetooth this runs at a few KB per second, so it may take several minutes.`))
+    send("dump");
+};
+el.erase.onclick = ()=>{
+  if(!confirm("Erase every stored session on the logger?\n\nThis cannot be undone.")) return;
+  if(!confirm("Really erase? Anything not already saved to CSV is lost.")) return;
+  send("erase yes");
+  setTimeout(()=>send("free"), 25000);   // erase takes about 20 s
+};
+
+/* ═══ controls ═══════════════════════════════════════════════════════════ */
+function syncRec(){
+  el.rec.textContent = recording ? "Stop" : "Record";
+  el.rec.classList.toggle("primary", !recording);
+  el.rec.classList.toggle("on", recording);
+}
+el.rec.onclick  = ()=> send(recording?"stop":"start");
+el.mark.onclick = ()=> send("mark");
+el.sec.onclick  = ()=>{
+  const n=(el.secName.value||"").trim().replace(/\s+/g,"_");
+  if(!n){ el.secName.focus(); return; }
+  send("sec "+n);
+};
+el.secName.addEventListener("keydown", e=>{ if(e.key==="Enter") el.sec.click(); });
+
+el.save.onclick = ()=>{
+  const t = trace();
+  const lines = (mode==="review" && reviewTrace) ? reviewTrace.raw : liveTrace.raw;
+  if(!lines.length){ alert("Nothing to save yet."); return; }
+  const stamp=new Date().toISOString().slice(0,16).replace(/[:T]/g,"-");
+  const tag = mode==="review" ? "flash" : "live";
+  const url=URL.createObjectURL(new Blob([lines.join("\n")+"\n"],{type:"text/csv"}));
+  const a=document.createElement("a");
+  a.href=url; a.download=`tl1-${tag}-${stamp}.csv`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+};
+
+el.out.onclick    = ()=>{ viewSpan=Math.min(viewSpan*2,7200); dirty=true; };
+el.in.onclick     = ()=>{ viewSpan=Math.max(viewSpan/2,5);   dirty=true; };
+el.follow.onclick = ()=>{
+  follow=!follow; el.follow.classList.toggle("on",follow);
+  const t=trace();
+  if(follow && t.samples.length) viewEnd=t.samples[t.samples.length-1].t;
+  dirty=true;
+};
+
+/* ═══ graph ══════════════════════════════════════════════════════════════ */
+const cv=el.cv, ctx=cv.getContext("2d");
+const PAD={l:44,r:44,t:34,b:26};
+let W=0,H=0;
+
+function resize(){
+  const r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  W=Math.max(1,Math.round(r.width)); H=Math.max(1,Math.round(r.height));
+  cv.width=W*dpr; cv.height=H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  dirty=true;
+}
+new ResizeObserver(resize).observe(cv);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function draw(){
+  const C={rail:css("--rail"),pine:css("--pine"),dim:css("--pine-dim"),
+           sprint:css("--sprint"),stayer:css("--stayer")};
+  ctx.clearRect(0,0,W,H);
+  const pw=W-PAD.l-PAD.r, ph=H-PAD.t-PAD.b;
+  if(pw<20||ph<20) return;
+
+  const T = trace();
+  const t1 = viewEnd || viewSpan, t0 = t1 - viewSpan;
+  const maxSpd = Math.max(60, Math.ceil(Math.max(10,...T.samples.map(s=>s.speed))/10)*10);
+  const maxCad = 200;
+  const X = t => PAD.l + ((t-t0)/viewSpan)*pw;
+  const Ys = v => PAD.t + ph - (v/maxSpd)*ph;
+  const Yc = v => PAD.t + ph - (v/maxCad)*ph;
+
+  ctx.font="500 10px "+css("--f-mono").split(",")[0].replace(/"/g,"")+", monospace";
+  ctx.strokeStyle=C.rail; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=PAD.t+ph-(i/4)*ph;
+    ctx.globalAlpha=i===0?.9:.35;
+    ctx.beginPath(); ctx.moveTo(PAD.l,y+.5); ctx.lineTo(PAD.l+pw,y+.5); ctx.stroke();
+    ctx.globalAlpha=1;
+    ctx.fillStyle=C.sprint; ctx.textAlign="right"; ctx.textBaseline="middle";
+    ctx.fillText(String(Math.round(maxSpd*i/4)), PAD.l-7, y);
+    ctx.fillStyle=C.stayer; ctx.textAlign="left";
+    ctx.fillText(String(Math.round(maxCad*i/4)), PAD.l+pw+7, y);
+  }
+
+  const step = viewSpan<=30?5 : viewSpan<=120?15 : viewSpan<=600?60 : viewSpan<=1800?300 : 600;
+  ctx.textAlign="center"; ctx.textBaseline="top"; ctx.fillStyle=C.dim;
+  for(let t=Math.ceil(t0/step)*step; t<=t1; t+=step){
+    const x=X(t);
+    ctx.strokeStyle=C.rail; ctx.globalAlpha=.22;
+    ctx.beginPath(); ctx.moveTo(x+.5,PAD.t); ctx.lineTo(x+.5,PAD.t+ph); ctx.stroke();
+    ctx.globalAlpha=1;
+    const m=Math.floor(t/60), s=Math.floor(t%60);
+    ctx.fillText(`${m}:${String(s).padStart(2,"0")}`, x, PAD.t+ph+6);
+  }
+
+  T.markers.forEach(mk=>{
+    if(mk.t<t0||mk.t>t1) return;
+    const x=X(mk.t);
+    ctx.strokeStyle = mk.kind==="gear"?C.pine:C.dim;
+    ctx.globalAlpha=.55; ctx.setLineDash(mk.kind==="gear"?[]:[3,3]);
+    ctx.beginPath(); ctx.moveTo(x+.5,PAD.t); ctx.lineTo(x+.5,PAD.t+ph); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    ctx.save(); ctx.translate(x+4,PAD.t+4); ctx.rotate(Math.PI/2);
+    ctx.fillStyle=mk.kind==="gear"?C.pine:C.dim;
+    ctx.textAlign="left"; ctx.textBaseline="middle";
+    ctx.fillText(mk.text||mk.kind,0,0);
+    ctx.restore();
+  });
+
+  const vis=T.samples.filter(s=>s.t>=t0-1&&s.t<=t1+1);
+  const tr=(key,Y,col)=>{
+    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.lineJoin="round"; ctx.beginPath();
+    let started=false;
+    vis.forEach(s=>{ const x=X(s.t), y=Y(s[key]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y); });
+    ctx.stroke();
+  };
+  if(vis.length>1){ tr("cad",Yc,C.stayer); tr("speed",Ys,C.sprint); }
+  else if(!T.samples.length){
+    ctx.fillStyle=C.dim; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.font="14px "+css("--f-ui").split(",")[0].replace(/"/g,"")+", sans-serif";
+    ctx.fillText(mode==="review" ? "Pick a session below."
+                                 : "Press Record, or load a session from flash.",
+                 PAD.l+pw/2, PAD.t+ph/2);
+  }
+
+  if(cursor!==null && vis.length){
+    const tc=t0+((cursor-PAD.l)/pw)*viewSpan;
+    let near=vis[0];
+    for(const s of vis) if(Math.abs(s.t-tc)<Math.abs(near.t-tc)) near=s;
+    const x=X(near.t);
+    ctx.strokeStyle=C.pine; ctx.globalAlpha=.5; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x+.5,PAD.t); ctx.lineTo(x+.5,PAD.t+ph); ctx.stroke();
+    ctx.globalAlpha=1;
+    [[near.speed.toFixed(1)+" km/h",C.sprint,Ys(near.speed)],
+     [Math.round(near.cad)+" rpm",C.stayer,Yc(near.cad)]].forEach(([txt,col,y])=>{
+      ctx.fillStyle=col;
+      ctx.beginPath(); ctx.arc(x,y,3.5,0,6.2832); ctx.fill();
+      const flip = x>PAD.l+pw-90;
+      ctx.textAlign=flip?"right":"left"; ctx.textBaseline="bottom";
+      ctx.fillText(txt, x+(flip?-8:8), y-6);
+    });
+    const m=Math.floor(near.t/60), s2=(near.t%60).toFixed(1).padStart(4,"0");
+    ctx.fillStyle=C.pine; ctx.textAlign="center"; ctx.textBaseline="top";
+    ctx.fillText(`${m}:${s2}`+(near.gear&&near.gear!=="-"?"  "+near.gear:""), x, PAD.t+ph+6);
+  }
+}
+
+let drag=null;
+cv.addEventListener("pointerdown",e=>{ cv.setPointerCapture(e.pointerId); drag={x:e.offsetX,end:viewEnd}; });
+cv.addEventListener("pointermove",e=>{
+  cursor=e.offsetX;
+  if(drag){
+    const pw=W-PAD.l-PAD.r;
+    viewEnd = drag.end - ((e.offsetX-drag.x)/pw)*viewSpan;
+    if(follow){ follow=false; el.follow.classList.remove("on"); }
+  }
+  dirty=true;
+});
+cv.addEventListener("pointerup",()=>{drag=null});
+cv.addEventListener("pointercancel",()=>{drag=null});
+cv.addEventListener("pointerleave",()=>{cursor=null;dirty=true});
+cv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  viewSpan = Math.min(7200, Math.max(5, viewSpan*(e.deltaY>0?1.2:1/1.2)));
+  dirty=true;
+},{passive:false});
+
+(function tick(){ if(dirty){ dirty=false; draw(); } requestAnimationFrame(tick); })();
+
+resize(); syncRec(); paintFlash();
+</script>
+</body>
+</html>
