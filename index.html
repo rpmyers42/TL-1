@@ -102,7 +102,10 @@ button.armed{background:var(--sprint);border-color:var(--sprint);color:#fff}
 .unit{font-size:10px;letter-spacing:.15em;text-transform:uppercase;
   color:var(--dim);display:block;margin-top:4px}
 
-.strip{display:grid;grid-template-columns:repeat(4,1fr);flex:0 0 auto;
+/* Auto-flow so the strip re-divides itself when the watts cell appears,
+   instead of leaving a gap or needing the column count changed in two
+   places. */
+.strip{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;flex:0 0 auto;
   border-bottom:1px solid var(--rail);background:var(--panel)}
 .scell{padding:7px 10px;border-right:1px solid var(--rail);min-width:0;text-align:center}
 .scell:last-child{border-right:0}
@@ -192,16 +195,35 @@ details[open] summary::after{content:"\2212"}
 
 <p class="notice hide" id="notice"></p>
 
+<div class="notice hide" id="recover">
+  <strong>Unsaved session found.</strong> <span id="recoverTxt"></span>
+  <div class="row" style="margin-top:9px">
+    <button id="btnRecover" class="small">Restore it</button>
+    <button id="btnDiscard" class="small">Discard</button>
+  </div>
+</div>
+
+<div class="notice hide" id="gap">
+  <strong>Link was down.</strong> <span id="gapTxt"></span>
+  <div class="row" style="margin-top:9px">
+    <button id="btnGapFill" class="small">Pull it from flash</button>
+    <button id="btnGapDismiss" class="small">Ignore</button>
+  </div>
+</div>
+
 <div class="readout">
   <div class="cell s"><span class="val" id="vSpeed">&ndash;&ndash;</span><span class="unit">km/h</span></div>
   <div class="cell c"><span class="val" id="vCad">&ndash;&ndash;</span><span class="unit">cadence rpm</span></div>
 </div>
 
 <div class="strip">
-  <div class="scell"><span class="sval" id="vTime">0:00</span><span class="slab">elapsed</span></div>
+  <div class="scell"><span class="sval" id="vTime">0:00</span><span class="slab">session</span></div>
   <div class="scell"><span class="sval" id="vDist">0</span><span class="slab">metres</span></div>
-  <div class="scell p"><span class="sval" id="vPwr">&ndash;&ndash;</span><span class="slab">watts</span></div>
-  <div class="scell"><span class="sval" id="vPts">0</span><span class="slab">samples</span></div>
+  <div class="scell"><span class="sval" id="vSecTime">0:00</span><span class="slab" id="lSecTime">section</span></div>
+  <div class="scell"><span class="sval" id="vSecDist">0</span><span class="slab">section m</span></div>
+  <!-- Only shown once a power meter actually reports, so it does not
+       sit there saying -- and stealing a quarter of the strip. -->
+  <div class="scell p hide" id="cPwr"><span class="sval" id="vPwr">&ndash;&ndash;</span><span class="slab">watts</span></div>
 </div>
 
 <div class="plot">
@@ -339,7 +361,8 @@ const el = {
   dot:$("dot"), state:$("stateTxt"), notice:$("notice"), connect:$("btnConnect"),
   bat:$("bat"),
   speed:$("vSpeed"), cad:$("vCad"),
-  time:$("vTime"), dist:$("vDist"), pwr:$("vPwr"), pts:$("vPts"),
+  time:$("vTime"), dist:$("vDist"), pwr:$("vPwr"), cPwr:$("cPwr"),
+  secTime:$("vSecTime"), secDist:$("vSecDist"), lSecTime:$("lSecTime"),
   rec:$("btnRec"), mark:$("btnMark"), sec:$("btnSec"), secName:$("secName"),
   out:$("btnOut"), in:$("btnIn"), follow:$("btnFollow"), badge:$("badge"),
   cv:$("cv"), log:$("log"),
@@ -348,6 +371,10 @@ const el = {
   flashTxt:$("flashTxt"), gaugeFill:$("gaugeFill"), sessions:$("sessions"),
   reviewRow:$("reviewRow"), reviewTxt:$("reviewTxt"), backLive:$("btnBackLive"),
   open:$("btnOpen"), fileIn:$("fileIn"),
+  recover:$("recover"), recoverTxt:$("recoverTxt"),
+  doRecover:$("btnRecover"), doDiscard:$("btnDiscard"),
+  gap:$("gap"), gapTxt:$("gapTxt"),
+  gapFill:$("btnGapFill"), gapDismiss:$("btnGapDismiss"),
   circVal:$("circVal"), circ:$("btnCirc"), gearVal:$("gearVal"), gear:$("btnGear"),
   status:$("btnStatus"), rescan:$("btnRescan"), forget:$("btnForget"),
   dFlash:$("dFlash"),
@@ -577,6 +604,14 @@ async function openLink(){
   setLinked(true);
   acquireWake();
   log("— linked to " + (dev.name || "TL-1") + " —", "mk");
+
+  // How long were we away, and did we miss anything worth fetching?
+  if(gapStart){
+    const secs = (Date.now() - gapStart) / 1000;
+    gapStart = 0;
+    log("link was down for " + secs.toFixed(0) + " s", "er");
+    if(secs > 5) noteGap(secs);
+  }
   // Queued, so these are sent one after the other instead of colliding.
   send("status");
   send("free");
@@ -588,6 +623,7 @@ async function openLink(){
 function onDrop(){
   rxChar = txChar = null;
   setLinked(false);
+  if(!gapStart){ gapStart = Date.now(); wasRecording = recording; saveSnapshot(); }
   if(!wantLink){ setState("Not connected"); return; }
   const wait = Math.min(1000 * Math.pow(1.6, retry), 20000);
   retry++;
@@ -653,12 +689,13 @@ function handleLine(line){
      below would repaint the live gauge with numbers from last week. */
   if(/^# BEGIN/.test(line)){
     const n = line.match(/(\d+) bytes/);
-    imp = { lines:[], got:0, expected: n ? +n[1] : 0 };
+    imp = { lines:[], got:0, expected: n ? +n[1] : 0, last: Date.now() };
     el.flashTxt.textContent = "loading…";
     log(line, "mk");
     return;
   }
   if(imp){
+    imp.last = Date.now();
     if(/^# END/.test(line)){
       log("# END, " + imp.got + " bytes received", "mk");
       finishImport();
@@ -690,9 +727,11 @@ function handleLine(line){
       pushRaw(liveTrace, line);
       settleRec(true); backToLive();
       liveTrace.markers.push({ t:0, kind:"session", text:"start" });
+      openSection("main", 0, NaN);   // wheel baseline fills on the first packet
     } else if(/^# SESSION STOP/.test(line)){
       settleRec(false);
       pushRaw(liveTrace, line);
+      saveSnapshot();          // the moment there is a complete session to lose
       send("free");
     } else {
       pushRaw(liveTrace, line);
@@ -705,6 +744,10 @@ function handleLine(line){
           kind: m[1].toLowerCase(),
           text: m[1] === "GEAR" ? ((line.match(/(\d+x\d+)/) || [])[1] || "none") : m[2],
         });
+        if(m[1] === "SECTION"){
+          const nw = liveTrace.wr.length ? liveTrace.wr[liveTrace.wr.length - 1] : NaN;
+          openSection(m[2], tm ? parseFloat(tm[1]) : last, nw);
+        }
       }
     }
     dirty = true;
@@ -730,6 +773,9 @@ function handleLine(line){
         if(!liveTrace.cols) liveTrace.cols = cols;   // inferred from width
         pushSample(liveTrace, s, LIVE_CAP);
         pushRaw(liveTrace, line);
+        // The section baseline waits for a real wheel reading, same as
+        // the session one, so it never measures from a placeholder.
+        if(!Number.isFinite(secWr0) && Number.isFinite(s.wr)) secWr0 = s.wr;
         el.save.disabled = false;
         // Sample rows prove a session is running, but they must not
         // stomp on a Stop you just pressed and are still waiting on.
@@ -757,6 +803,26 @@ function handleLine(line){
     paintReadout({ sp:+sp[1], cd:+cd[1], pw: pw ? +pw[1] : NaN });
 }
 
+/* AN UNFINISHED IMPORT USED TO SWALLOW EVERYTHING, FOREVER.
+   While `imp` is set, every incoming line is filed into the import
+   buffer instead of being displayed. If a dump was interrupted, by a
+   dropped link or by walking out of range, `# END` never arrived, `imp`
+   stayed set, and from then on the page looked completely dead: no
+   numbers, no graph, no markers, while data poured in and vanished.
+   There was no way out short of reloading, and nothing on screen said
+   so. A dump pauses for at most a few hundred ms between chunks, so
+   eight seconds of silence means it is not coming back. */
+setInterval(()=>{
+  if(!imp) return;
+  if(Date.now() - imp.last < 8000) return;
+  const got = imp.lines;
+  const n = imp.got;
+  imp = null;
+  log("import stalled after " + n + " bytes, no # END. Keeping what arrived.", "er");
+  try{ showSessions(parseSessions(got)); }catch(e){ log("could not parse it: " + e.message, "er"); }
+  got.length = 0;
+}, 2000);
+
 /* A link can stay "connected" long after the data stops, and a frozen
    number looks exactly like a real one. Dim the readout and say how
    long it has been quiet instead of letting it pass for live. The
@@ -775,25 +841,48 @@ setInterval(()=>{
 const fmt1 = v => Number.isFinite(v) ? v.toFixed(1) : "––";
 const fmt0 = v => Number.isFinite(v) ? String(Math.round(v)) : "––";
 
+/* Section tracking. The logger stamps `# SECTION <name> t=<T>s`, so the
+   clock comes from the logger's own timebase rather than the phone's,
+   which keeps it right across a dropped link. Section distance is
+   measured from the wheel counter at the moment the section opened. */
+let secT0 = 0, secWr0 = NaN, secName = "";
+
+function openSection(name, t, wheelNow){
+  secName = name || "";
+  secT0 = Number.isFinite(t) ? t : 0;
+  secWr0 = Number.isFinite(wheelNow) ? wheelNow : NaN;
+  paintCounters();
+}
+
+const mmss = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+
 function paintReadout(s){
   el.speed.textContent = fmt1(s.sp);
   el.cad.textContent   = fmt0(s.cd);
-  el.pwr.textContent   = (Number.isFinite(s.pw) && s.pw !== 0) ? fmt0(s.pw) : "––";
+  if(Number.isFinite(s.pw)){
+    el.cPwr.classList.remove("hide");
+    el.pwr.textContent = fmt0(s.pw);
+  }
   paintCounters();
 }
 
 function paintCounters(){
   const tr = T();
   const n = tr.t.length;
-  el.pts.textContent = n ? String(n) : "0";
   const t = n ? tr.t[n - 1] : 0;
-  el.time.textContent = Math.floor(t / 60) + ":" +
-                        String(Math.floor(t % 60)).padStart(2, "0");
   const circ = (tr.circ || liveTrace.circ || 2100) / 1000;
   const last = n ? tr.wr[n - 1] : NaN;
+
+  el.time.textContent = mmss(t);
   el.dist.textContent = (Number.isFinite(last) && Number.isFinite(tr.wr0))
     ? Math.round((last - tr.wr0) * circ).toLocaleString()
     : "0";
+
+  el.secTime.textContent = mmss(Math.max(0, t - secT0));
+  el.secDist.textContent = (Number.isFinite(last) && Number.isFinite(secWr0))
+    ? Math.round((last - secWr0) * circ).toLocaleString()
+    : "0";
+  el.lSecTime.textContent = secName && secName !== "main" ? secName : "section";
 }
 
 function paintBattery(pct){
@@ -1075,6 +1164,74 @@ el.fileIn.onchange = async ()=>{
   el.fileIn.value = "";
 };
 
+/* ═══ surviving the track ════════════════════════════════════════════════
+   Two things happen at a velodrome that do not happen at a bench. You
+   ride away from the phone, and iOS reclaims memory from a backgrounded
+   tab. The logger is unaffected by either, since flash is the real
+   record, but the page used to lose everything it had collected.
+
+   So: the raw lines are snapshotted to localStorage every few seconds
+   while recording, and a gap in the link is measured and offered back
+   as a `tail` big enough to cover it. Browser storage is per-viewer and
+   can throw or come back empty, so every access is wrapped and nothing
+   depends on it succeeding. */
+const SNAP_KEY = "tl1-live-snapshot";
+const SNAP_MAX = 12000;        // lines; roughly 550 KB, well inside quota
+
+function saveSnapshot(){
+  if(!liveTrace.raw.length) return;
+  try{
+    localStorage.setItem(SNAP_KEY, JSON.stringify({
+      at: Date.now(),
+      lines: liveTrace.raw.slice(-SNAP_MAX),
+      cut: liveTrace.rawCut || liveTrace.raw.length > SNAP_MAX,
+    }));
+  }catch(e){ /* quota, private mode, whatever. Flash still has it. */ }
+}
+function clearSnapshot(){ try{ localStorage.removeItem(SNAP_KEY); }catch(e){} }
+
+setInterval(()=>{ if(recording) saveSnapshot(); }, 5000);
+
+(function offerRecovery(){
+  let s = null;
+  try{
+    const raw = localStorage.getItem(SNAP_KEY);
+    if(raw) s = JSON.parse(raw);
+  }catch(e){ return; }
+  if(!s || !Array.isArray(s.lines) || s.lines.length < 5) return;
+
+  const mins = Math.round((Date.now() - (s.at || 0)) / 60000);
+  el.recoverTxt.textContent = s.lines.length + " lines, last written " +
+    (mins < 1 ? "under a minute" : mins + " min") + " ago." +
+    (s.cut ? " Older lines were trimmed; the logger has the full session." : "");
+  el.recover.classList.remove("hide");
+
+  el.doRecover.onclick = ()=>{
+    el.recover.classList.add("hide");
+    try{ showSessions(parseSessions(s.lines)); log("restored " + s.lines.length + " lines", "mk"); }
+    catch(e){ log("could not restore: " + e.message, "er"); }
+  };
+  el.doDiscard.onclick = ()=>{ el.recover.classList.add("hide"); clearSnapshot(); };
+})();
+
+/* Gap handling. A dropped link while recording means the phone missed
+   rows that flash still has, and `tail` can fetch them back. Sized from
+   the gap rather than guessed: 4 Hz at roughly 48 bytes a row, plus a
+   margin, because asking for slightly too much is free and asking for
+   too little means doing it twice. */
+let gapStart = 0, wasRecording = false;
+
+function noteGap(seconds){
+  const kb = Math.min(512, Math.max(8, Math.ceil(seconds * 4 * 48 / 1024) + 8));
+  el.gapTxt.textContent = "Down for " + Math.round(seconds) + " s" +
+    (wasRecording ? ", so the phone missed about " + Math.round(seconds * 4) +
+       " samples. The logger kept recording them." : ".");
+  el.gap.classList.remove("hide");
+  el.gapFill.textContent = "Pull last " + kb + " KB from flash";
+  el.gapFill.onclick = ()=>{ el.gap.classList.add("hide"); send("tail " + kb); };
+  el.gapDismiss.onclick = ()=>{ el.gap.classList.add("hide"); };
+}
+
 /* ═══ graph ══════════════════════════════════════════════════════════════ */
 let follow = true, viewSpan = 120, viewEnd = 0, cursor = null, dirty = true;
 
@@ -1194,13 +1351,15 @@ function draw(){
   const step = viewSpan <= 30 ? 5 : viewSpan <= 120 ? 15 : viewSpan <= 600 ? 60
              : viewSpan <= 1800 ? 300 : 600;
   ctx.textAlign = "center"; ctx.textBaseline = "top";
-  for(let t = Math.ceil(t0 / step) * step; t <= t1; t += step){
+  // Start at zero, never before it. A 120 s window on a 99 s session
+  // runs the axis negative, and Math.floor on a negative second count
+  // printed "-1:-15".
+  for(let t = Math.max(0, Math.ceil(t0 / step) * step); t <= t1; t += step){
     const x = X(t);
     ctx.strokeStyle = C.rail; ctx.globalAlpha = .2;
     ctx.beginPath(); ctx.moveTo(x + .5, PAD.t); ctx.lineTo(x + .5, PAD.t + ph); ctx.stroke();
     ctx.globalAlpha = 1; ctx.fillStyle = C.dim;
-    ctx.fillText(Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0"),
-                 x, PAD.t + ph + 5);
+    ctx.fillText(mmss(t), x, PAD.t + ph + 5);
   }
 
   for(const mk of tr.markers){

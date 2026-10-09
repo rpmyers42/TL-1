@@ -16,7 +16,7 @@
  * activate, so nothing accumulates.
  * ───────────────────────────────────────────────────────────────────────── */
 
-const CACHE = "tl1-v4";
+const CACHE = "tl1-v5";
 
 const ASSETS = [
   "./",
