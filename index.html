@@ -47,8 +47,15 @@ body{
 .bar{display:flex;align-items:center;gap:12px;padding:8px 14px;
   border-bottom:1px solid var(--rail);flex:0 0 auto}
 .wordmark{font-family:var(--f-num);font-weight:700;font-size:25px;
-  letter-spacing:.04em;text-transform:uppercase;line-height:1}
+  letter-spacing:.04em;text-transform:uppercase;line-height:1;
+  white-space:nowrap;flex:0 0 auto}
 .wordmark span{color:var(--sprint)}
+/* Version, visible without opening anything. An afternoon went into a
+   bug that was really a phone serving a cached build from two revisions
+   back, with nothing on screen to say so. Never again. */
+.wordmark .ver{font-family:var(--f-mono);font-style:normal;font-size:10px;
+  font-weight:400;color:var(--dim);vertical-align:super;margin-left:3px;
+  letter-spacing:0}
 .state{display:flex;align-items:center;gap:6px;font-size:11.5px;
   letter-spacing:.08em;text-transform:uppercase;color:var(--dim);min-width:0}
 .state b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -186,7 +193,7 @@ details[open] summary::after{content:"\2212"}
 <body>
 
 <div class="bar">
-  <div class="wordmark">TL<span>&ndash;</span>1</div>
+  <div class="wordmark">TL<span>&ndash;</span>1<i class="ver" id="ver"></i></div>
   <div class="state"><span class="dot" id="dot"></span><b id="stateTxt">Not connected</b></div>
   <div class="spacer"></div>
   <span class="pill hide" id="bat">--</span>
@@ -355,6 +362,11 @@ const RAW_CAP     = 40000;    // lines retained for Save CSV
 const TRIM_CHUNK  = 2000;     // trim in blocks, not one at a time
 const REVIEW_CAP  = 80000;    // per imported session
 const BLE_KB_S    = 2.5;      // measured-ish NUS throughput, for estimates
+
+/* Bump this with every change you publish. It shows next to the
+   wordmark and goes into the stream log on load, so "which build is
+   this phone actually running" is answered by looking, not guessing. */
+const PAGE_VER = "v5";
 
 const $ = id => document.getElementById(id);
 const el = {
@@ -1487,6 +1499,9 @@ window.TL1 = {
   get live(){ return liveTrace; },
   get shown(){ return T(); },
 };
+
+$("ver").textContent = PAGE_VER;
+log("— TL-1 receiver " + PAGE_VER + " —", "mk");
 
 resize(); syncRec(); paintFlash(); paintCounters();
 </script>
