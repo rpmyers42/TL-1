@@ -71,6 +71,22 @@ button:focus-visible{outline:2px solid var(--stayer);outline-offset:2px}
 button:disabled{opacity:.3;cursor:not-allowed}
 button.primary{background:var(--sprint);border-color:var(--sprint);color:#fff;font-weight:600}
 button.on{background:var(--pine);border-color:var(--pine);color:var(--board);font-weight:600}
+/* Waiting on the logger to confirm. The button already shows the state
+   you asked for; this says the round trip has not landed yet. */
+button.pending{opacity:.66;overflow:hidden;position:relative}
+button.pending::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:100%;
+  background:currentColor;opacity:.6;animation:waitbar 1.1s ease-in-out infinite}
+@keyframes waitbar{
+  0%{transform:scaleX(0);transform-origin:left}
+  49.9%{transform:scaleX(1);transform-origin:left}
+  50%{transform:scaleX(1);transform-origin:right}
+  100%{transform:scaleX(0);transform-origin:right}}
+button.ack{animation:ackflash .45s ease-out}
+@keyframes ackflash{from{background:var(--pine);color:var(--board)}}
+
+/* No data arriving. Dim the numbers rather than letting a frozen
+   reading pass for a live one. */
+body.stale .val,body.stale .sval{opacity:.35}
 button.small{min-height:40px;padding:0 12px;font-size:13.5px}
 button.danger{border-color:var(--sprint);color:var(--sprint)}
 button.armed{background:var(--sprint);border-color:var(--sprint);color:#fff}
@@ -610,8 +626,9 @@ document.addEventListener("visibilitychange", ()=>{
 
 /* ═══ receive ════════════════════════════════════════════════════════════ */
 const dec = new TextDecoder();
-let rxBuf = "";
+let rxBuf = "", lastRx = 0;
 function onData(ev){
+  lastRx = Date.now();
   rxBuf += dec.decode(ev.target.value);
   // A notification can split a line anywhere, so only complete lines are
   // handled and the remainder waits. Guard against a peer that never
@@ -671,10 +688,10 @@ function handleLine(line){
     if(/^# SESSION START/.test(line)){
       resetLive();
       pushRaw(liveTrace, line);
-      recording = true; syncRec(); backToLive();
+      settleRec(true); backToLive();
       liveTrace.markers.push({ t:0, kind:"session", text:"start" });
     } else if(/^# SESSION STOP/.test(line)){
-      recording = false; syncRec();
+      settleRec(false);
       pushRaw(liveTrace, line);
       send("free");
     } else {
@@ -714,7 +731,9 @@ function handleLine(line){
         pushSample(liveTrace, s, LIVE_CAP);
         pushRaw(liveTrace, line);
         el.save.disabled = false;
-        if(!recording){ recording = true; syncRec(); }
+        // Sample rows prove a session is running, but they must not
+        // stomp on a Stop you just pressed and are still waiting on.
+        if(!recording){ recording = true; if(pendingRec === null) syncRec(); }
         if(mode === "live"){
           paintReadout(s);
           if(follow) viewEnd = s.t;
@@ -737,6 +756,20 @@ function handleLine(line){
   if(sp && cd && mode === "live")
     paintReadout({ sp:+sp[1], cd:+cd[1], pw: pw ? +pw[1] : NaN });
 }
+
+/* A link can stay "connected" long after the data stops, and a frozen
+   number looks exactly like a real one. Dim the readout and say how
+   long it has been quiet instead of letting it pass for live. The
+   logger emits at least one line a second even when idle, so three
+   seconds of silence means something is actually wrong. */
+setInterval(()=>{
+  if(!rxChar || !lastRx){ document.body.classList.remove("stale"); return; }
+  const age = (Date.now() - lastRx) / 1000;
+  const stale = age > 3;
+  document.body.classList.toggle("stale", stale);
+  if(stale) setState("no data " + age.toFixed(0) + "s", "bad");
+  else setState(dev && dev.name ? dev.name : "TL-1", "live");
+}, 1000);
 
 /* ═══ readout ════════════════════════════════════════════════════════════ */
 const fmt1 = v => Number.isFinite(v) ? v.toFixed(1) : "––";
@@ -896,18 +929,62 @@ function backToLive(){
 el.backLive.onclick = backToLive;
 
 /* ═══ controls ═══════════════════════════════════════════════════════════ */
+/* OPTIMISTIC, AND THAT IS THE WHOLE POINT.
+   v3 only flipped this button when `# SESSION START` came back from the
+   logger. Over a 23-byte MTU that marker plus its 86-byte header is
+   seven notifications, so on a slow connection interval you could watch
+   the serial console begin recording while the button sat there still
+   saying Record and still looking clickable. The UI was correct and
+   useless.
+   Now the button shows what you asked for immediately, marked pending,
+   and reconciles when the logger answers. If no answer arrives it puts
+   itself back and says so, rather than lying in the other direction. */
+let pendingRec = null, pendingTimer = null;
+
 function syncRec(){
-  el.rec.textContent = recording ? "Stop" : "Record";
-  el.rec.classList.toggle("primary", !recording);
-  el.rec.classList.toggle("on", recording);
+  const shown = (pendingRec === null) ? recording : pendingRec;
+  el.rec.textContent = shown ? "Stop" : "Record";
+  el.rec.classList.toggle("primary", !shown);
+  el.rec.classList.toggle("on", shown);
+  el.rec.classList.toggle("pending", pendingRec !== null);
 }
-el.rec.onclick    = ()=> send(recording ? "stop" : "start");
-el.mark.onclick   = ()=> send("mark");
-el.status.onclick = ()=> send("status");
-el.rescan.onclick = ()=> send("rescan");
-el.free.onclick   = ()=> send("free");
-el.tail.onclick   = ()=> send("tail 32");
-el.tail2.onclick  = ()=> send("tail 128");
+
+// Called when the logger tells us what actually happened.
+function settleRec(state){
+  recording = state;
+  pendingRec = null;
+  clearTimeout(pendingTimer);
+  syncRec();
+}
+
+el.rec.onclick = ()=>{
+  const want = (pendingRec === null) ? !recording : !pendingRec;
+  pendingRec = want;
+  syncRec();
+  send(want ? "start" : "stop");
+  clearTimeout(pendingTimer);
+  pendingTimer = setTimeout(()=>{
+    if(pendingRec === null) return;
+    pendingRec = null;
+    syncRec();
+    log("no confirmation from the logger, button put back to its last known state", "er");
+  }, 5000);
+};
+
+// Everything else gets a brief acknowledgement so a press is never silent.
+function ack(btn){
+  btn.classList.remove("ack");
+  void btn.offsetWidth;            // restart the animation
+  btn.classList.add("ack");
+}
+const tap = (btn, cmd)=>{ btn.onclick = ()=>{ ack(btn); send(cmd); }; };
+
+tap(el.mark,   "mark");
+tap(el.status, "status");
+tap(el.rescan, "rescan");
+tap(el.free,   "free");
+tap(el.tail,   "tail 32");
+tap(el.tail2,  "tail 128");
 
 el.sec.onclick = ()=>{
   const n = (el.secName.value || "").trim().replace(/\s+/g, "_");
