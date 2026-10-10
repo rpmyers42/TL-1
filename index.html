@@ -23,8 +23,11 @@
 :root{
   --board:#12131A; --panel:#1B1D27; --panel-2:#22252F; --rail:#3A3F4E;
   --pine:#E8DCC8; --dim:#9A9284;
-  --sprint:#E23B3B;   /* speed  */
-  --stayer:#4A8FE7;   /* cadence */
+  /* Named off the track itself, so the palette means something and
+     cannot drift into whatever looked nice that day. */
+  --sprint:#E23B3B;   /* sprinters' line, speed   */
+  --stayer:#4A8FE7;   /* stayers' line, cadence   */
+  --cote:#2E7D9A;     /* côte d'azur, the blue band: capture state */
   --watt:#E0A93B;     /* power  */
   --ok:#5BC17F; --warn:#E0A93B;
   --f-num:"Avenir Next Condensed","HelveticaNeue-CondensedBold","Roboto Condensed",
@@ -43,9 +46,21 @@ body{
   -webkit-text-size-adjust:100%;
 }
 
-/* ---------- top bar ---------- */
-.bar{display:flex;align-items:center;gap:12px;padding:8px 14px;
-  border-bottom:1px solid var(--rail);flex:0 0 auto}
+/* ---------- top bar ----------
+   TWO ROWS, AND THE SECOND ONE EARNS ITS PLACE.
+   One row could not hold it. Wordmark, state, three sensor indicators,
+   battery, clock and a button came to more than 390 px, and the item
+   that lost was the connection state, because it is the only flexible
+   one. Watching "Out of range 1:23" get squeezed to nothing was the
+   whole point of this release disappearing into a layout bug.
+
+   So: identity, state, time and the action on top, always. Diagnostics
+   below, only while there is a link — which is also the only time they
+   mean anything. Disconnected, the bar is one row and the state text
+   has the width of the screen. */
+.bar{border-bottom:1px solid var(--rail);flex:0 0 auto;position:relative}
+.brow{display:flex;align-items:center;gap:11px;padding:8px 14px}
+.brow.sub{padding:0 14px 8px;gap:8px}
 .wordmark{font-family:var(--f-num);font-weight:700;font-size:25px;
   letter-spacing:.04em;text-transform:uppercase;line-height:1;
   white-space:nowrap;flex:0 0 auto}
@@ -56,9 +71,12 @@ body{
 .wordmark .ver{font-family:var(--f-mono);font-style:normal;font-size:10px;
   font-weight:400;color:var(--dim);vertical-align:super;margin-left:3px;
   letter-spacing:0}
-.state{display:flex;align-items:center;gap:6px;font-size:11.5px;
-  letter-spacing:.08em;text-transform:uppercase;color:var(--dim);min-width:0}
-.state b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Sentence case, not tracked-out caps. At arm's length in daylight the
+   caps were harder to read, not easier, and every label on the page was
+   shouting the same volume as every other. */
+.state{display:flex;align-items:center;gap:6px;font-size:13px;
+  color:var(--dim);min-width:0;flex:1 1 auto}
+.state b{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--rail);flex:0 0 auto}
 .dot.live{background:var(--ok)}
 .dot.busy{background:var(--warn);animation:pulse 1.1s ease-in-out infinite}
@@ -68,6 +86,30 @@ body{
   border:1px solid var(--rail);color:var(--dim);flex:0 0 auto}
 .pill.low{border-color:var(--sprint);color:var(--sprint)}
 .spacer{margin-left:auto}
+
+/* TIME OF DAY, top right, always running.
+   It is in the brief, and it is the only field on the page that is
+   right whatever else has gone wrong: no logger, no session, no
+   signal. That makes it the cheapest possible sign the page itself is
+   still alive, which is worth something on a page whose main failure
+   mode has been looking alive while receiving nothing. */
+.clock{font-family:var(--f-num);font-weight:600;font-size:19px;
+  font-variant-numeric:tabular-nums;letter-spacing:.01em;
+  color:var(--pine);flex:0 0 auto;line-height:1}
+
+/* THREE SENSORS, THREE INDICATORS.
+   "Why is cadence zero" had one answer available before this: open
+   Setup, tap Status, read a table. The logger reports sensor state on
+   change now, so the answer can just be on screen. Letters not icons:
+   at arm's length an S is legible and a 9 px glyph is not. */
+.sens{display:flex;gap:3px;flex:0 0 auto}
+.sens i{font-family:var(--f-mono);font-style:normal;font-size:10px;
+  width:17px;height:17px;line-height:17px;text-align:center;border-radius:4px;
+  background:var(--panel-2);color:var(--rail);border:1px solid var(--rail)}
+.sens i.on{color:var(--board);font-weight:700}
+.sens i.s.on{background:var(--sprint);border-color:var(--sprint)}
+.sens i.c.on{background:var(--stayer);border-color:var(--stayer)}
+.sens i.p.on{background:var(--watt);border-color:var(--watt)}
 
 /* ---------- buttons ---------- */
 button{font-family:var(--f-ui);font-size:15px;font-weight:500;color:var(--pine);
@@ -106,21 +148,68 @@ button.armed{background:var(--sprint);border-color:var(--sprint);color:#fff}
 .val{font-family:var(--f-num);font-weight:600;font-size:clamp(44px,15vw,76px);
   line-height:.85;letter-spacing:-.01em;font-variant-numeric:tabular-nums;display:block}
 .cell.s .val{color:var(--sprint)} .cell.c .val{color:var(--stayer)}
-.unit{font-size:10px;letter-spacing:.15em;text-transform:uppercase;
-  color:var(--dim);display:block;margin-top:4px}
+.unit{font-size:12.5px;color:var(--dim);display:block;margin-top:6px}
+
+/* THE ANSWER TO THE DEAD IDLE STATE.
+   You cannot read a phone at 60 km/h on the banking. You read this at
+   the rail, between efforts, when the wheel is stopped and the live
+   number is therefore 0.0. Putting the largest element on the least
+   useful number at exactly the moment you look at it is the whole
+   problem. So the peak sits under it: what the effort actually was,
+   which is the question you came to the phone with. */
+.peak{display:block;margin-top:3px;font-size:12.5px;color:var(--dim);
+  min-height:1.1em}
+.peak b{font-family:var(--f-num);font-weight:600;font-size:16px;
+  font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.cell.s .peak b{color:var(--sprint)} .cell.c .peak b{color:var(--stayer)}
+
+/* ---------- lap band ----------
+   A band of its own, not three more cells in the strip. Lap time is
+   the result of an effort and the strip is where context lives;
+   putting them at the same weight was most of why the old readout had
+   nothing to look at. The running lap is the live one, so it is the
+   one in full brightness and it alone carries tenths.
+
+   Tenths and no further. The lap clock comes from the wheel sensor's
+   own event timestamps interpolated across the packet the boundary
+   fell inside, which is good to about a tenth. Hundredths would be
+   three digits of false precision and a reason to distrust the two
+   that are real. */
+.lapband{display:grid;grid-template-columns:1.25fr 1fr 1fr;flex:0 0 auto;
+  border-bottom:1px solid var(--rail);background:var(--panel)}
+.lcell{padding:7px 12px 8px;border-right:1px solid var(--rail);min-width:0}
+.lcell:last-child{border-right:0}
+.lval{font-family:var(--f-num);font-weight:600;font-size:29px;line-height:1;
+  font-variant-numeric:tabular-nums;display:block;color:var(--dim);
+  white-space:nowrap;overflow:hidden}
+.lcell.now .lval{color:var(--pine);font-size:34px}
+/* The best lap is the only number here worth a colour of its own. */
+.lcell.best .lval{color:var(--watt)}
+.llab{font-size:11.5px;color:var(--dim);display:block;margin-top:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcell.now .llab b{font-family:var(--f-num);font-weight:600;font-size:13px;
+  color:var(--pine)}
 
 /* Auto-flow so the strip re-divides itself when the watts cell appears,
    instead of leaving a gap or needing the column count changed in two
    places. */
 .strip{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;flex:0 0 auto;
   border-bottom:1px solid var(--rail);background:var(--panel)}
-.scell{padding:7px 10px;border-right:1px solid var(--rail);min-width:0;text-align:center}
+.scell{padding:8px 10px;border-right:1px solid var(--rail);min-width:0;text-align:center}
 .scell:last-child{border-right:0}
-.sval{font-family:var(--f-mono);font-size:14px;font-variant-numeric:tabular-nums;
-  display:block;white-space:nowrap;overflow:hidden}
+/* One numeric voice across the page. The monospace here was a second
+   typeface doing a job the condensed figures already do, and tabular
+   figures stop the jitter without changing face mid-screen. */
+.sval{font-family:var(--f-num);font-weight:600;font-size:21px;line-height:1;
+  font-variant-numeric:tabular-nums;display:block;white-space:nowrap;overflow:hidden}
 .scell.p .sval{color:var(--watt)}
-.slab{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);
-  display:block;margin-top:2px}
+.slab{font-size:11.5px;color:var(--dim);display:block;margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Session and section are two different questions, so they read as two
+   pairs rather than four cells of equal weight. */
+.scell.sub{background:rgba(0,0,0,.22)}
+.scell.sub .sval{font-size:17px;color:var(--dim)}
+.scell.sub .sval.live{color:var(--pine)}
 
 /* ---------- plot ---------- */
 .plot{position:relative;flex:1 1 auto;min-height:150px;background:var(--board)}
@@ -136,9 +225,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
    and would otherwise take the background back. */
 .plot-tools button.on{background:var(--pine);border-color:var(--pine);
   color:var(--board);font-weight:600}
-.legend{position:absolute;top:13px;left:13px;display:flex;gap:12px;
-  align-items:center;font-size:10.5px;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--dim);pointer-events:none}
+.legend{position:absolute;top:13px;left:13px;display:flex;gap:13px;
+  align-items:center;font-size:12px;color:var(--dim);pointer-events:none}
 .legend i{display:inline-block;width:13px;height:2px;vertical-align:middle;margin-right:4px}
 .badge{color:var(--pine);font-weight:600}
 
@@ -148,19 +236,28 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .row{display:flex;align-items:center;gap:8px}
 .row.wrap{flex-wrap:wrap}
 #btnRec{flex:1 1 auto;font-size:17px}
-input[type=text]{font-family:var(--f-ui);font-size:16px;color:var(--pine);
-  background:var(--panel-2);border:1px solid var(--rail);border-radius:8px;
-  padding:0 12px;min-height:var(--tap);min-width:0;flex:1 1 90px}
-input[type=text]:focus{outline:2px solid var(--stayer);outline-offset:1px}
+input[type=text],input[type=datetime-local]{font-family:var(--f-ui);font-size:16px;
+  color:var(--pine);background:var(--panel-2);border:1px solid var(--rail);
+  border-radius:8px;padding:0 12px;min-height:var(--tap);min-width:0;flex:1 1 90px}
+input[type=text]:focus,input[type=datetime-local]:focus{outline:2px solid var(--stayer);outline-offset:1px}
+input[type=datetime-local]{color-scheme:dark;flex:1 1 180px}
 .hint{font-size:12.5px;color:var(--dim)}
-.tag{font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;
-  color:var(--dim);flex:0 0 auto;width:48px}
+.tag{font-size:13px;color:var(--dim);flex:0 0 auto;width:52px}
+
+/* Capture state, always visible, costing no space. The one thing you
+   must never be wrong about is whether this is recording, and a button
+   label at the bottom of the screen was carrying that alone. */
+.bar{position:relative}
+.bar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:var(--sprint);opacity:0;transition:opacity .18s}
+body.rec .bar::after{opacity:1}
+body.rec .dot.live{background:var(--sprint)}
 
 /* ---------- panels ---------- */
 details{border-top:1px solid var(--rail);flex:0 0 auto}
-summary{padding:13px 14px;cursor:pointer;font-size:11px;letter-spacing:.13em;
-  text-transform:uppercase;color:var(--dim);list-style:none;
-  display:flex;align-items:center;gap:8px}
+summary{padding:14px;cursor:pointer;font-size:14px;
+  color:var(--dim);list-style:none;display:flex;align-items:center;gap:8px}
+summary:hover{color:var(--pine)}
 summary::-webkit-details-marker{display:none}
 summary::after{content:"+";margin-left:auto;font-size:15px}
 details[open] summary::after{content:"\2212"}
@@ -175,6 +272,22 @@ details[open] summary::after{content:"\2212"}
 .sessions button small{display:block;color:var(--dim);font-size:11px;
   letter-spacing:.04em;margin-top:3px;font-family:var(--f-mono)}
 .sessions button.on small{color:rgba(18,19,26,.7)}
+
+/* ---------- lap table ----------
+   The screen you actually read after a set of efforts, which is why
+   Garmin and Wahoo both have one. Monospace figures because this is a
+   column of numbers to compare down, not a reading to glance at. */
+.laptab{font-size:13px;width:100%;border-collapse:collapse}
+.laptab th{text-align:right;font-weight:400;color:var(--dim);font-size:11.5px;
+  padding:0 0 5px;border-bottom:1px solid var(--rail)}
+.laptab th:first-child,.laptab td:first-child{text-align:left}
+.laptab td{text-align:right;padding:5px 0;font-family:var(--f-num);
+  font-weight:600;font-variant-numeric:tabular-nums;
+  border-bottom:1px solid rgba(58,63,78,.4)}
+.laptab td:first-child{font-family:var(--f-ui);font-weight:400;color:var(--dim)}
+.laptab tr.best td{color:var(--watt)}
+.laptab tr.best td:first-child::after{content:" best";font-size:11px;color:var(--watt)}
+.lapsrc{font-size:12px;color:var(--dim)}
 #log{font-family:var(--f-mono);font-size:11px;line-height:1.55;
   background:var(--panel);color:var(--dim);max-height:180px;overflow:auto;
   padding:9px 14px 12px;white-space:pre-wrap;word-break:break-all;margin:0;
@@ -192,13 +305,31 @@ details[open] summary::after{content:"\2212"}
 </head>
 <body>
 
-<div class="bar">
-  <div class="wordmark">TL<span>&ndash;</span>1<i class="ver" id="ver"></i></div>
-  <div class="state"><span class="dot" id="dot"></span><b id="stateTxt">Not connected</b></div>
-  <div class="spacer"></div>
-  <span class="pill hide" id="bat">--</span>
-  <button id="btnConnect" class="primary small">Connect</button>
-</div>
+<header class="bar">
+  <div class="brow">
+    <div class="wordmark">TL<span>&ndash;</span>1<i class="ver" id="ver"></i></div>
+    <div class="state"><span class="dot" id="dot"></span><b id="stateTxt">Not connected</b></div>
+    <span class="clock" id="clock">--:--</span>
+    <button id="btnConnect" class="primary small">Connect</button>
+  </div>
+  <div class="brow sub hide" id="bar2">
+    <!-- Which sensors the logger has. Hidden until it says, so an older
+         firmware that never reports them shows nothing rather than three
+         indicators stuck on "off". -->
+    <span class="sens hide" id="sens">
+      <i class="s" id="sensS" title="speed sensor">S</i>
+      <i class="c" id="sensC" title="cadence sensor">C</i>
+      <i class="p" id="sensP" title="power meter">P</i>
+    </span>
+    <span class="pill hide" id="bat">--</span>
+    <div class="spacer"></div>
+    <!-- Lines received since connecting. If this is climbing, the radio
+         half works and any remaining problem is in the page. If it sits
+         at 0 while the serial console is busy, nothing is arriving and
+         the page is blameless. One glance, no panels to open. -->
+    <span class="pill hide" id="rx">rx 0</span>
+  </div>
+</header>
 
 <p class="notice hide" id="notice"></p>
 
@@ -219,17 +350,41 @@ details[open] summary::after{content:"\2212"}
 </div>
 
 <div class="readout">
-  <div class="cell s"><span class="val" id="vSpeed">&ndash;&ndash;</span><span class="unit">km/h</span></div>
-  <div class="cell c"><span class="val" id="vCad">&ndash;&ndash;</span><span class="unit">cadence rpm</span></div>
+  <div class="cell s">
+    <span class="val" id="vSpeed">&ndash;&ndash;</span>
+    <span class="unit">km/h</span>
+    <span class="peak" id="pSpeed"></span>
+  </div>
+  <div class="cell c">
+    <span class="val" id="vCad">&ndash;&ndash;</span>
+    <span class="unit">cadence</span>
+    <span class="peak" id="pCad"></span>
+  </div>
 </div>
 
+<div class="lapband">
+  <div class="lcell now">
+    <span class="lval" id="vLap">0:00.0</span>
+    <span class="llab" id="lLap">lap <b>1</b></span>
+  </div>
+  <div class="lcell">
+    <span class="lval" id="vLapLast">&ndash;&ndash;</span>
+    <span class="llab">last</span>
+  </div>
+  <div class="lcell best">
+    <span class="lval" id="vLapBest">&ndash;&ndash;</span>
+    <span class="llab">best</span>
+  </div>
+</div>
+
+<!-- Three cells by default, which is the whole of the brief that is
+     not already above. Section and watts appear only when they have
+     something to say: a readout that grows when you reach for a
+     feature beats one that permanently shows two fields reading --. -->
 <div class="strip">
-  <div class="scell"><span class="sval" id="vTime">0:00</span><span class="slab">session</span></div>
-  <div class="scell"><span class="sval" id="vDist">0</span><span class="slab">metres</span></div>
-  <div class="scell"><span class="sval" id="vSecTime">0:00</span><span class="slab" id="lSecTime">section</span></div>
-  <div class="scell"><span class="sval" id="vSecDist">0</span><span class="slab">section m</span></div>
-  <!-- Only shown once a power meter actually reports, so it does not
-       sit there saying -- and stealing a quarter of the strip. -->
+  <div class="scell"><span class="sval" id="vTime">0:00</span><span class="slab">activity</span></div>
+  <div class="scell"><span class="sval" id="vDist">0</span><span class="slab" id="lDist">metres</span></div>
+  <div class="scell sub hide" id="cSec"><span class="sval" id="vSecTime">0:00</span><span class="slab" id="lSecTime">section</span></div>
   <div class="scell p hide" id="cPwr"><span class="sval" id="vPwr">&ndash;&ndash;</span><span class="slab">watts</span></div>
 </div>
 
@@ -248,14 +403,18 @@ details[open] summary::after{content:"\2212"}
 </div>
 
 <div class="controls">
+  <!-- Lap is promoted to sit beside Record, because on the track it is
+       the button you press between efforts and Mark is the one you
+       press rarely. Both are thumb-sized. -->
   <div class="row">
     <button id="btnRec" class="primary" disabled>Record</button>
-    <button id="btnMark" disabled>Mark</button>
+    <button id="btnLap" disabled>Lap</button>
   </div>
   <div class="row">
     <input type="text" id="secName" placeholder="section name" autocomplete="off"
            spellcheck="false" enterkeyhint="go">
     <button id="btnSec" disabled>Set</button>
+    <button id="btnMark" class="small" disabled>Mark</button>
   </div>
   <div class="row hide" id="reviewRow">
     <span class="hint" id="reviewTxt"></span>
@@ -264,20 +423,45 @@ details[open] summary::after{content:"\2212"}
   </div>
 </div>
 
+<details id="dLaps">
+  <summary>Laps</summary>
+  <div class="panel">
+    <div class="lapsrc" id="lapsTxt">No laps yet.</div>
+    <table class="laptab hide" id="lapTab"><thead><tr>
+      <th>lap</th><th>time</th><th>km/h</th><th>peak</th>
+    </tr></thead><tbody id="lapBody"></tbody></table>
+  </div>
+</details>
+
 <details id="dFlash">
   <summary>Flash log</summary>
   <div class="panel">
     <div class="hint" id="flashTxt">not read yet</div>
     <div class="gauge"><i id="gaugeFill"></i></div>
+    <!-- Grouped by what the buttons actually do, using the same quiet
+         label pattern as Setup. Eight buttons across three ragged rows
+         gave no clue which pull from the logger and which write a file
+         you keep. -->
     <div class="row wrap">
+      <span class="tag">Fetch</span>
       <button id="btnFree"  class="small" disabled>Refresh</button>
-      <button id="btnTail"  class="small" disabled>Last 32 KB</button>
-      <button id="btnTail2" class="small" disabled>Last 128 KB</button>
-      <button id="btnDump"  class="small" disabled>Load all</button>
+      <button id="btnTail"  class="small" disabled>32 KB</button>
+      <button id="btnTail2" class="small" disabled>128 KB</button>
+      <button id="btnDump"  class="small" disabled>All</button>
     </div>
     <div class="row wrap">
-      <button id="btnSave"  class="small" disabled>Save CSV</button>
-      <button id="btnOpen"  class="small">Open CSV</button>
+      <span class="tag">Save</span>
+      <button id="btnSave"  class="small" disabled>CSV</button>
+      <button id="btnTcx"   class="small" disabled>TCX for Strava</button>
+      <button id="btnOpen"  class="small">Open a file</button>
+    </div>
+    <div class="row wrap" id="startRow">
+      <span class="tag">Ride at</span>
+      <input type="datetime-local" id="startAt">
+    </div>
+    <div class="hint">The TCX carries this as the ride time. Upload it at
+      strava.com/upload, or hand it to the Pi.</div>
+    <div class="row">
       <div class="spacer"></div>
       <button id="btnErase" class="small danger" disabled>Erase log</button>
     </div>
@@ -294,6 +478,19 @@ details[open] summary::after{content:"\2212"}
       <input type="text" id="circVal" inputmode="numeric" placeholder="2100">
       <button id="btnCirc" class="small" disabled>Set mm</button>
     </div>
+    <div class="row wrap">
+      <span class="tag">Lap</span>
+      <input type="text" id="lapVal" inputmode="numeric" placeholder="250">
+      <button id="btnAutolap" class="small">Set m</button>
+    </div>
+    <div class="hint">Auto-lap distance. 250 is one lap of a standard
+      velodrome, 333 and 400 exist too; 0 leaves only the Lap button.
+      Sent to the logger as well, so both ends agree.</div>
+    <div class="row wrap">
+      <span class="tag">Screen</span>
+      <button id="btnAwake" class="small">Keep awake: on</button>
+    </div>
+    <div class="hint" id="awakeTxt"></div>
     <div class="row wrap">
       <span class="tag">Gear</span>
       <input type="text" id="gearVal" placeholder="63 14">
@@ -313,6 +510,18 @@ details[open] summary::after{content:"\2212"}
   <summary>Stream</summary>
   <pre id="log"></pre>
 </details>
+
+<!-- A silent, looping, 64x64 black video. It is not decoration and it
+     is never visible: playing a video is the only way to stop iOS
+     sleeping the screen in a WKWebView, because Bluefy does not
+     implement the Screen Wake Lock API. A sleeping screen suspends the
+     page, which drops the Bluetooth link, which is the single most
+     common way this app fails at the track. 1.5 KB inline, so it costs
+     no request and works with no signal. -->
+<video id="awakeVid" playsinline muted loop disableremoteplayback
+       aria-hidden="true" tabindex="-1"
+       style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9px;top:-9px"
+       src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMQbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAjp0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAGybWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABXW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAR1zdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBQsAe/+EAF2dCwB7ZBCbARAAAAwAEAAADAAg8WLkgAQAFaMuDyyAAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAUkAAAFJAAAAAYc3R0cwAAAAAAAAABAAAAAQAAQAAAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAEAAAABAAAAFHN0c3oAAAAAAAACkgAAAAEAAAAUc3RjbwAAAAAAAAABAAADQAAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAAKabWRhdAAAAnAGBf//bNxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDE6MHgxMTEgbWU9aGV4IHN1Ym1lPTcgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTEgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTIgdGhyZWFkcz0yIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MCB3ZWlnaHRwPTAga2V5aW50PTI1MCBrZXlpbnRfbWluPTEgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjAwAIAAAAAaZYiEBX///w9FAAFC3ycnJ1111111111114A="></video>
 
 <script>
 "use strict";
@@ -366,15 +575,21 @@ const BLE_KB_S    = 2.5;      // measured-ish NUS throughput, for estimates
 /* Bump this with every change you publish. It shows next to the
    wordmark and goes into the stream log on load, so "which build is
    this phone actually running" is answered by looking, not guessing. */
-const PAGE_VER = "v5";
+const PAGE_VER = "v8";
 
 const $ = id => document.getElementById(id);
 const el = {
   dot:$("dot"), state:$("stateTxt"), notice:$("notice"), connect:$("btnConnect"),
-  bat:$("bat"),
-  speed:$("vSpeed"), cad:$("vCad"),
+  bat:$("bat"), rx:$("rx"), clock:$("clock"),
+  bar2:$("bar2"),
+  sens:$("sens"), sensS:$("sensS"), sensC:$("sensC"), sensP:$("sensP"),
+  lapNow:$("vLap"), lapNowLab:$("lLap"), lapLast:$("vLapLast"), lapBest:$("vLapBest"),
+  btnLap:$("btnLap"), lapsTxt:$("lapsTxt"), lapTab:$("lapTab"), lapBody:$("lapBody"),
+  lapM:$("lapVal"), autolap:$("btnAutolap"), cSec:$("cSec"),
+  awake:$("btnAwake"), awakeTxt:$("awakeTxt"), awakeVid:$("awakeVid"),
+  speed:$("vSpeed"), cad:$("vCad"), pSpeed:$("pSpeed"), pCad:$("pCad"),
   time:$("vTime"), dist:$("vDist"), pwr:$("vPwr"), cPwr:$("cPwr"),
-  secTime:$("vSecTime"), secDist:$("vSecDist"), lSecTime:$("lSecTime"),
+  secTime:$("vSecTime"), lSecTime:$("lSecTime"), lDist:$("lDist"),
   rec:$("btnRec"), mark:$("btnMark"), sec:$("btnSec"), secName:$("secName"),
   out:$("btnOut"), in:$("btnIn"), follow:$("btnFollow"), badge:$("badge"),
   cv:$("cv"), log:$("log"),
@@ -383,6 +598,7 @@ const el = {
   flashTxt:$("flashTxt"), gaugeFill:$("gaugeFill"), sessions:$("sessions"),
   reviewRow:$("reviewRow"), reviewTxt:$("reviewTxt"), backLive:$("btnBackLive"),
   open:$("btnOpen"), fileIn:$("fileIn"),
+  tcx:$("btnTcx"), startAt:$("startAt"),
   recover:$("recover"), recoverTxt:$("recoverTxt"),
   doRecover:$("btnRecover"), doDiscard:$("btnDiscard"),
   gap:$("gap"), gapTxt:$("gapTxt"),
@@ -400,7 +616,20 @@ function newTrace(label){
   return { label,
     t:[], sp:[], cd:[], pw:[], wr:[], we:[], cr:[], ce:[], gr:[],
     markers:[], raw:[], rawCut:false,
-    maxSp:0, header:null, cols:null, circ:null, wr0:null };
+    maxSp:0, header:null, cols:null, circ:null, wr0:null,
+    // Wall clock for the start of the session, known only for one
+    // received live. An imported or restored session has no such thing,
+    // and guessing silently would date a ride wrongly in Strava.
+    wallStart:null,
+    /* Laps. See the laps section for what each of these is doing; the
+       short version is that lapBase* is where the current lap opened
+       and lapPrev* is the packet before the current one, because a lap
+       boundary falls between two packets and has to be interpolated
+       across the one it landed in. */
+    laps:[], lapCount:0, fwLaps:false, lapOpenT:null,
+    lapBaseRev:null, lapBaseTick:null, lapBaseT:null,
+    lapPrevRev:null, lapPrevTick:null, lapPrevT:null,
+    lapTick:0, lapLastWe:null };
 }
 
 const liveTrace = newTrace("live");
@@ -444,6 +673,7 @@ function resetLive(){
     .forEach(k=>liveTrace[k].length = 0);
   liveTrace.maxSp = 0; liveTrace.wr0 = null; liveTrace.rawCut = false;
   liveTrace.header = null; liveTrace.cols = null; liveTrace.circ = keep;
+  lapReset(liveTrace);
 }
 
 /* ═══ column mapping ═════════════════════════════════════════════════════
@@ -556,65 +786,198 @@ function send(cmd){
   return gattChain;
 }
 
-/* ═══ connection ═════════════════════════════════════════════════════════ */
+/* ═══ connection ═════════════════════════════════════════════════════
+   CONNECTING IS THE PRIORITY, so this is the part that changed most in
+   v8. Three things were making it worse than it had to be.
+
+   1. EVERY CONNECTION STARTED WITH THE BROWSER'S DEVICE PICKER. Web
+      Bluetooth requires a user gesture and a chooser for a device the
+      page has never seen — but not for one it already holds permission
+      for. navigator.bluetooth.getDevices() returns those, and they can
+      be connected to with no picker and no tap. So the device is
+      remembered and reopening the page reconnects by itself.
+
+   2. IT GAVE UP. After thirty tries the page stopped and waited to be
+      told to try again, which is exactly backwards at a velodrome:
+      riding out of range is the normal case, not a fault. It now keeps
+      trying until told to stop, with the delay capped so a long wait
+      costs almost nothing, and it says how long it has been waiting
+      instead of showing a try number that means nothing to anyone.
+
+   3. THE SCREEN SLEEPING DROPPED THE LINK. See keepAwake.
+
+   watchAdvertisements() would be the elegant way to notice the logger
+   coming back into range, and it is deliberately not used: support is
+   patchy across exactly the browsers this has to run in, and one
+   connection attempt every fifteen seconds costs so little that a
+   second code path cannot justify itself.
+*/
 let dev = null, rxChar = null, txChar = null;
 let recording = false, wantLink = false;
-let retry = 0, retryTimer = null;
+let retry = 0, retryTimer = null, waitSince = 0;
+
+const DEV_KEY = "tl1-device";
 
 function setState(txt, cls){
   el.state.textContent = txt;
   el.dot.className = "dot" + (cls ? " " + cls : "");
 }
 function setLinked(on){
-  [el.rec, el.mark, el.sec, el.free, el.tail, el.tail2, el.dump, el.erase,
-   el.circ, el.gear, el.status, el.rescan, el.forget]
+  [el.rec, el.mark, el.sec, el.btnLap, el.free, el.tail, el.tail2, el.dump,
+   el.erase, el.circ, el.gear, el.status, el.rescan, el.forget]
     .forEach(b=>{ b.disabled = !on; });
-  el.connect.textContent = on ? "Disconnect" : "Connect";
-  el.connect.classList.toggle("primary", !on);
+  // The received-line count belongs to a connection, so it goes away
+  // with one. That also hands "Not connected" the width it needs
+  // instead of letting it truncate to "Not co...".
+  el.rx.classList.toggle("hide", !on);
+  // The diagnostics row exists only while there is a link to diagnose.
+  el.bar2.classList.toggle("hide", !on);
+  if(!on) el.sens.classList.add("hide");
+  paintLink();
 }
 
-el.connect.onclick = async ()=>{
-  if(wantLink){ teardown(); return; }
+/* ONE PLACE DECIDES WHAT THE TOP BAR SAYS.
+   v7 called setState from six places with ad-hoc strings, so the text
+   depended on which code path ran last. Now there is one function and
+   one truth: not wanted, live, or waiting — and waiting says for how
+   long, because at the track that is the only part you care about. */
+function paintLink(){
+  if(!wantLink){
+    setState("Not connected");
+    el.connect.textContent = "Connect";
+    el.connect.classList.add("primary");
+    return;
+  }
+  if(rxChar){
+    setState(dev && dev.name ? dev.name : "TL-1", "live");
+    el.connect.textContent = "Disconnect";
+    el.connect.classList.remove("primary");
+    return;
+  }
+  const secs = waitSince ? (Date.now() - waitSince) / 1000 : 0;
+  el.connect.classList.remove("primary");
+  if(secs > 15){
+    setState("Out of range " + mmss(secs), "busy");
+    el.connect.textContent = "Stop";
+  }else{
+    setState("Connecting", "busy");
+    el.connect.textContent = "Cancel";
+  }
+}
+setInterval(()=>{ if(wantLink && !rxChar) paintLink(); }, 1000);
+
+function rememberDevice(d){
+  try{ localStorage.setItem(DEV_KEY,
+    JSON.stringify({ id:d.id, name:d.name || "TL-1" })); }catch(e){}
+}
+
+/* The device this page already has permission for, if the browser will
+   say. Returns null rather than throwing, because every caller's
+   fallback is the same: show Connect and wait for a tap. */
+async function knownDevice(){
+  let saved = null;
+  try{ saved = JSON.parse(localStorage.getItem(DEV_KEY) || "null"); }catch(e){}
+  if(!saved || !navigator.bluetooth || !navigator.bluetooth.getDevices) return null;
   try{
-    setState("Choosing…", "busy");
-    dev = await navigator.bluetooth.requestDevice({
+    const list = await navigator.bluetooth.getDevices();
+    return list.find(d=>d.id === saved.id) || null;
+  }catch(e){ return null; }
+}
+
+function attach(d){
+  dev = d;
+  d.removeEventListener("gattserverdisconnected", onDrop);
+  d.addEventListener("gattserverdisconnected", onDrop);
+}
+
+/* The tap handler is deliberately not async above the armAwake call.
+   Playing a video needs the user gesture that is still in hand on this
+   line and gone after the first await, and on Bluefy that video is the
+   only thing keeping the screen on. */
+el.connect.onclick = ()=>{
+  if(wantLink){ teardown(); return; }
+  armAwake();
+  beginConnect();
+};
+
+async function beginConnect(){
+  const known = await knownDevice();
+  if(known){
+    log("connecting to " + (known.name || "TL-1") + ", no picker needed", "mk");
+    attach(known);
+    wantLink = true; retry = 0; waitSince = Date.now();
+    paintLink();
+    tryOpen();
+    return;
+  }
+  try{
+    setState("Choosing device", "busy");
+    const d = await navigator.bluetooth.requestDevice({
       filters:[{ namePrefix:"TL-1" }, { services:[NUS] }],
       optionalServices:[NUS],
     });
-    dev.addEventListener("gattserverdisconnected", onDrop);
-    wantLink = true; retry = 0;
-    await openLink();
+    rememberDevice(d);
+    attach(d);
+    wantLink = true; retry = 0; waitSince = Date.now();
+    paintLink();
+    tryOpen();
   }catch(e){
     wantLink = false;
-    setState("Not connected");
+    paintLink();
     // NotFoundError just means the picker was dismissed. Not worth a line.
     if(e && e.name !== "NotFoundError") log("connect: " + e.message, "er");
   }
-};
+}
 
 function teardown(){
   wantLink = false;
+  waitSince = 0;
   clearTimeout(retryTimer);
-  releaseWake();
+  releaseAwake();
   try{ if(dev && dev.gatt.connected) dev.gatt.disconnect(); }catch(e){}
   rxChar = txChar = null;
   setLinked(false);
-  setState("Not connected");
   log("— disconnected —", "mk");
 }
 
+async function tryOpen(){
+  if(!wantLink || !dev) return;
+  try{ await openLink(); }
+  catch(e){
+    // Not worth a log line every fifteen seconds while you are on the
+    // far side of the track; the first one says enough.
+    if(retry === 0) log("could not open the link: " + e.message, "er");
+    scheduleRetry();
+  }
+}
+
+/* 0.8 s, then 1.2, 1.8 … capped at 15 s, and never abandoned. The cap
+   matters more than the curve: a lap of a velodrome is under a minute,
+   so four attempts cover a lap and the page is connected again before
+   you have stopped. */
+function scheduleRetry(){
+  if(!wantLink) return;
+  if(!waitSince) waitSince = Date.now();
+  const wait = Math.min(800 * Math.pow(1.5, Math.min(retry, 9)), 15000);
+  retry++;
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(tryOpen, wait);
+  paintLink();
+}
+
 async function openLink(){
-  setState("Connecting…", "busy");
+  if(!wantLink) return;
+  setState("Connecting", "busy");
   const gatt = await dev.gatt.connect();
   const svc  = await gatt.getPrimaryService(NUS);
   rxChar = await svc.getCharacteristic(NUS_RX);
   txChar = await svc.getCharacteristic(NUS_TX);
   txChar.addEventListener("characteristicvaluechanged", onData);
   await txChar.startNotifications();
-  retry = 0;
-  setState(dev.name || "TL-1", "live");
+  retry = 0; waitSince = 0;
+  rememberDevice(dev);
   setLinked(true);
-  acquireWake();
+  armAwake();
   log("— linked to " + (dev.name || "TL-1") + " —", "mk");
 
   // How long were we away, and did we miss anything worth fetching?
@@ -625,52 +988,98 @@ async function openLink(){
     if(secs > 5) noteGap(secs);
   }
   // Queued, so these are sent one after the other instead of colliding.
+  // `id` is first because what the other end is decides how to read
+  // everything after it; rev 15 and earlier answer "unknown command",
+  // which is harmless and is its own answer.
+  send("id");
   send("status");
   send("free");
 }
 
-/* Exponential backoff, capped. iOS suspends the page when the screen
-   locks or you switch apps, which drops the link every single time, so
-   silent recovery matters more here than on desktop. */
 function onDrop(){
   rxChar = txChar = null;
   setLinked(false);
-  if(!gapStart){ gapStart = Date.now(); wasRecording = recording; saveSnapshot(); }
-  if(!wantLink){ setState("Not connected"); return; }
-  const wait = Math.min(1000 * Math.pow(1.6, retry), 20000);
-  retry++;
-  if(retry > 30){
-    wantLink = false;
-    setState("Link lost", "bad");
-    log("— gave up reconnecting, press Connect —", "er");
-    return;
-  }
-  setState("Reconnecting " + retry, "busy");
-  clearTimeout(retryTimer);
-  retryTimer = setTimeout(async ()=>{
-    if(!wantLink || !dev) return;
-    if(dev.gatt.connected) return;
-    try{ await openLink(); }catch(e){ onDrop(); }
-  }, wait);
+  if(!gapStart){ gapStart = Date.now(); wasRecording = recording; saveSnapshot(true); }
+  if(!wantLink){ paintLink(); return; }
+  scheduleRetry();
 }
 
-/* Screen wake lock, where it exists. Bluefy's WKWebView does not expose
-   it, hence the guard rather than a feature promise. */
-let wakeLock = null;
-async function acquireWake(){
+/* ═══ keeping the screen on ══════════════════════════════════════════
+   This is a connection feature, not a convenience. iOS suspends a page
+   whose screen has locked, the GATT link drops with it, and you spend
+   the session reconnecting. Screen Wake Lock is the right API and
+   Chrome has it. Bluefy's WKWebView does not, and there the only lever
+   left is that iOS will not sleep the screen while a video is playing,
+   so there is a 1.5 KB silent black video in the markup for exactly
+   that. It has to start inside a user gesture, which is why armAwake
+   is called from the Connect tap and not when the link opens. */
+let wakeLock = null, awakeMode = "off", wantAwake = true;
+try{ wantAwake = localStorage.getItem("tl1-awake") !== "0"; }catch(e){}
+
+async function armAwake(){
+  if(!wantAwake) return;
+  if("wakeLock" in navigator){
+    try{
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", ()=>{ wakeLock = null; });
+      awakeMode = "lock"; paintAwake();
+      return;
+    }catch(e){ /* denied, or not allowed from this context */ }
+  }
+  const v = el.awakeVid;
+  if(!v) return;
   try{
-    if(!("wakeLock" in navigator)) return;
-    wakeLock = await navigator.wakeLock.request("screen");
-    wakeLock.addEventListener("release", ()=>{ wakeLock = null; });
-  }catch(e){ /* denied or unsupported, nothing to do */ }
+    const p = v.play();
+    if(p && p.then) p.then(()=>{ awakeMode = "video"; paintAwake(); })
+                     .catch(()=>{ awakeMode = "off"; paintAwake(); });
+  }catch(e){}
 }
-function releaseWake(){ try{ wakeLock && wakeLock.release(); }catch(e){} wakeLock = null; }
+function releaseAwake(){
+  try{ wakeLock && wakeLock.release(); }catch(e){}
+  wakeLock = null;
+  try{ el.awakeVid && el.awakeVid.pause(); }catch(e){}
+  awakeMode = "off"; paintAwake();
+}
+function paintAwake(){
+  el.awake.textContent = "Keep awake: " + (wantAwake ? "on" : "off");
+  el.awake.classList.toggle("on", wantAwake);
+  el.awakeTxt.textContent = !wantAwake
+    ? "The screen sleeps as usual, and the Bluetooth link drops when it does."
+    : awakeMode === "lock"  ? "Held awake by the Wake Lock API."
+    : awakeMode === "video" ? "No Wake Lock in this browser, so a silent one-pixel video is holding the screen on."
+    : "Will start when you connect.";
+}
+el.awake.onclick = ()=>{
+  wantAwake = !wantAwake;
+  try{ localStorage.setItem("tl1-awake", wantAwake ? "1" : "0"); }catch(e){}
+  if(wantAwake) armAwake(); else releaseAwake();
+  paintAwake();
+};
 
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState !== "visible") return;
-  if(wantLink && !wakeLock) acquireWake();
-  if(wantLink && dev && !dev.gatt.connected){ retry = 0; onDrop(); }
+  if(wantLink) armAwake();
+  // Coming back to the page is the strongest possible hint that now is
+  // a good moment to try, so skip whatever the backoff was waiting for.
+  if(wantLink && dev && !dev.gatt.connected){
+    retry = 0;
+    clearTimeout(retryTimer);
+    tryOpen();
+  }
 });
+
+/* ═══ the clock ══════════════════════════════════════════════════════
+   Time of day, top right. It is the only field on this page that is
+   correct with no logger, no session and no signal, which makes it the
+   cheapest available proof that the page itself has not died — the
+   failure this app has actually had, twice. */
+function paintClock(){
+  const d = new Date();
+  el.clock.textContent = d.getHours() + ":" +
+    String(d.getMinutes()).padStart(2, "0");
+}
+paintClock();
+setInterval(paintClock, 10000);
 
 /* ═══ receive ════════════════════════════════════════════════════════════ */
 const dec = new TextDecoder();
@@ -686,10 +1095,24 @@ function onData(ev){
   while((i = rxBuf.indexOf("\n")) >= 0){
     const line = rxBuf.slice(0, i).replace(/\r$/, "");
     rxBuf = rxBuf.slice(i + 1);
+    rxLines++;
     try{ handleLine(line); }
     catch(e){ log("parse error: " + e.message, "er"); }
   }
 }
+
+/* Counted here rather than in handleLine, so it ticks even for lines
+   that get swallowed, ignored or thrown away further down. The whole
+   point is to separate "nothing arrived" from "something arrived and
+   the page did nothing useful with it". Painted on a timer, not per
+   line, because a DOM write per notification is its own problem. */
+let rxLines = 0, rxShown = -1;
+setInterval(()=>{
+  if(rxLines === rxShown) return;
+  rxShown = rxLines;
+  el.rx.classList.toggle("hide", !rxChar);   // belongs to a live link
+  el.rx.textContent = "rx " + rxLines;
+}, 250);
 
 /* ---- bulk import ---- */
 let imp = null;   // {lines:[], got:0, expected:0}
@@ -730,24 +1153,64 @@ function handleLine(line){
   if(cm) liveTrace.circ = +cm[1];
   const bm = line.match(/\bbat(?:tery)?[= ]+(\d+)\s*%/i);
   if(bm) paintBattery(+bm[1]);
+  // rev 16 reports which sensors are live, on change. Older firmware
+  // never sends this and the indicators stay hidden rather than
+  // claiming three sensors are missing.
+  const sm = line.match(/^# sens spd=(\d) cad=(\d) pwr=(\d)/);
+  if(sm) paintSens(+sm[1], +sm[2], +sm[3]);
+  // The lap distance the LOGGER is using, from `# id` or from the
+  // session header. Taking it from the logger rather than from this
+  // page's setting is what stops the two disagreeing silently.
+  const am = line.match(/autolap=(\d+)\s*m/);
+  if(am) setLapMetres(+am[1], false);
 
   /* ---- markers ---- */
   if(line[0] === "#"){
     log(line, "mk");
     if(/^# SESSION START/.test(line)){
+      /* Before the scratch slot is reused, make sure whatever is in it
+       * is kept. A session that ended cleanly was archived on its stop,
+       * but one that ended because the link dropped or the tab died was
+       * not, and starting the next ride is exactly when you would lose
+       * it. Re-archiving an already-archived session is harmless; not
+       * archiving an orphaned one is not. */
+      if(liveTrace.raw.length) archiveSession();
+      clearSnapshot();
       resetLive();
       pushRaw(liveTrace, line);
       settleRec(true); backToLive();
       liveTrace.markers.push({ t:0, kind:"session", text:"start" });
+      liveTrace.wallStart = Date.now();   // the only moment we truly know it
       openSection("main", 0, NaN);   // wheel baseline fills on the first packet
+      lapReset(liveTrace); paintLaps(); paintLap();
+      refreshStartInput();
     } else if(/^# SESSION STOP/.test(line)){
       settleRec(false);
       pushRaw(liveTrace, line);
-      saveSnapshot();          // the moment there is a complete session to lose
+      saveSnapshot(true);      // the moment there is a complete session to lose
+      archiveSession();        // and into the slot a new session cannot clobber
       send("free");
     } else {
       pushRaw(liveTrace, line);
-      const m = line.match(/^# (SECTION|GEAR|MARK)\s*(\S*)/);
+      /* A lap from the logger. Its clock is better than anything this
+         page can compute — the sensor stamps the time the magnet
+         passed, so neither Bluetooth latency nor the sample tick is in
+         it — so the moment these start arriving the page stops deriving
+         laps and throws away the ones it derived. Two sources would
+         double-count, and the firmware's own numbering is the one that
+         matches the flash log. */
+      const lm = line.match(/^# LAP (\d+)\s+t=([\d.]+)s\s+dur=([\d.]+)s\s+d=([\d.]+)m/);
+      if(lm){
+        if(!liveTrace.fwLaps){
+          liveTrace.fwLaps = true;
+          liveTrace.laps = [];
+          log("the logger is timing laps, so this page will stop estimating them", "mk");
+        }
+        awaitFwLap = 0;
+        liveTrace.lapCount = +lm[1] - 1;
+        addLap(liveTrace, +lm[3], +lm[4], +lm[2], "fw");
+      }
+      const m = line.match(/^# (SECTION|GEAR|MARK|LAP)\s*(\S*)/);
       if(m){
         const tm = line.match(/t=([\d.]+)s/);
         const last = liveTrace.t.length ? liveTrace.t[liveTrace.t.length - 1] : 0;
@@ -788,7 +1251,10 @@ function handleLine(line){
         // The section baseline waits for a real wheel reading, same as
         // the session one, so it never measures from a placeholder.
         if(!Number.isFinite(secWr0) && Number.isFinite(s.wr)) secWr0 = s.wr;
-        el.save.disabled = false;
+        lapFeed(liveTrace, s);
+        // The session clock, and when we last heard it. See liveT().
+        lastSampleT = s.t; lastSampleWall = Date.now();
+        el.save.disabled = false; el.tcx.disabled = false;
         // Sample rows prove a session is running, but they must not
         // stomp on a Stop you just pressed and are still waiting on.
         if(!recording){ recording = true; if(pendingRec === null) syncRec(); }
@@ -858,11 +1324,17 @@ const fmt0 = v => Number.isFinite(v) ? String(Math.round(v)) : "––";
    which keeps it right across a dropped link. Section distance is
    measured from the wheel counter at the moment the section opened. */
 let secT0 = 0, secWr0 = NaN, secName = "";
+/* Peaks for the current section. These reset with the section rather
+ * than the session, because an effort is the unit a track rider thinks
+ * in: what did I just do, not what was the best thing I did all evening.
+ */
+let secMaxSp = 0, secMaxCd = 0;
 
 function openSection(name, t, wheelNow){
   secName = name || "";
   secT0 = Number.isFinite(t) ? t : 0;
   secWr0 = Number.isFinite(wheelNow) ? wheelNow : NaN;
+  secMaxSp = 0; secMaxCd = 0;
   paintCounters();
 }
 
@@ -871,11 +1343,39 @@ const mmss = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart
 function paintReadout(s){
   el.speed.textContent = fmt1(s.sp);
   el.cad.textContent   = fmt0(s.cd);
+  if(Number.isFinite(s.sp) && s.sp > secMaxSp) secMaxSp = s.sp;
+  if(Number.isFinite(s.cd) && s.cd > secMaxCd) secMaxCd = s.cd;
   if(Number.isFinite(s.pw)){
     el.cPwr.classList.remove("hide");
     el.pwr.textContent = fmt0(s.pw);
   }
+  paintPeaks();
   paintCounters();
+}
+
+/* The number under the big number. Shown only once there is a peak
+ * worth reporting, so an idle page stays quiet rather than displaying
+ * "peak 0.0" and teaching you to ignore the line. */
+function paintPeaks(){
+  el.pSpeed.innerHTML = secMaxSp > 0.5
+    ? "peak <b>" + secMaxSp.toFixed(1) + "</b>" : "";
+  el.pCad.innerHTML = secMaxCd > 0.5
+    ? "peak <b>" + Math.round(secMaxCd) + "</b>" : "";
+}
+
+/* Switch to kilometres past four figures. "22,700" does not fit the
+   cell at this size and was being clipped to "22,70", which is worse
+   than wrong because it looks like a number. The label moves with the
+   value so the pair is never misread. */
+function setDist(valEl, labEl, metres){
+  const m = Math.round(metres);
+  if(m >= 10000){
+    valEl.textContent = (m / 1000).toFixed(1);
+    labEl.textContent = "km";
+  }else{
+    valEl.textContent = m.toLocaleString();
+    labEl.textContent = "metres";
+  }
 }
 
 function paintCounters(){
@@ -886,21 +1386,251 @@ function paintCounters(){
   const last = n ? tr.wr[n - 1] : NaN;
 
   el.time.textContent = mmss(t);
-  el.dist.textContent = (Number.isFinite(last) && Number.isFinite(tr.wr0))
-    ? Math.round((last - tr.wr0) * circ).toLocaleString()
-    : "0";
+  setDist(el.dist, el.lDist, (Number.isFinite(last) && Number.isFinite(tr.wr0))
+    ? (last - tr.wr0) * circ : 0);
 
-  el.secTime.textContent = mmss(Math.max(0, t - secT0));
-  el.secDist.textContent = (Number.isFinite(last) && Number.isFinite(secWr0))
-    ? Math.round((last - secWr0) * circ).toLocaleString()
-    : "0";
-  el.lSecTime.textContent = secName && secName !== "main" ? secName : "section";
+  // The section pair only earns its space once you are actually using
+  // sections. Until then the strip is the three fields in the brief.
+  const useSec = !!(secName && secName !== "main");
+  el.cSec.classList.toggle("hide", !useSec);
+  if(useSec){
+    el.secTime.textContent = mmss(Math.max(0, t - secT0));
+    el.lSecTime.textContent = secName;
+  }
 }
 
 function paintBattery(pct){
   el.bat.classList.remove("hide");
   el.bat.textContent = pct + "%";
   el.bat.classList.toggle("low", pct <= 20);
+}
+
+/* ═══ laps ═══════════════════════════════════════════════════════════
+   The number a track rider came to the phone for, and until v8 the page
+   had no idea about it.
+
+   TWO SOURCES, ONE PREFERRED. Logger rev 16 times laps on the speed
+   sensor's own event clock and writes `# LAP n t= dur= d= avg=`, and
+   that is the better number for the reason given above. When those
+   markers are arriving, nothing here is derived.
+
+   Everything else gets the same calculation done here instead, from the
+   wheel_rev and wheel_evt columns, which carry exactly the same sensor
+   clock. So lap times work on older firmware, and on every flash log
+   recorded before laps existed, which is all of them.
+
+   Either way a lap boundary falls BETWEEN two sensor packets. A Garmin
+   speed sensor reports about once a second, so at 50 km/h one packet
+   spans fourteen metres and rounding to the packet after the boundary
+   would cost about a second a lap. The crossing is interpolated across
+   the packet it landed in instead, which the firmware's own test
+   measures as exact at constant speed and within 0.05 s under hard
+   acceleration. Tenths are therefore shown and hundredths are not. */
+let lapMetres = 250;
+try{
+  const v = parseInt(localStorage.getItem("tl1-lapm"), 10);
+  if(Number.isFinite(v) && v >= 0 && v <= 5000) lapMetres = v;
+}catch(e){}
+
+/* Session clock and the wall time we last heard it. Samples arrive at
+   2 Hz over Bluetooth, so a lap clock painted only when one lands ticks
+   in half-seconds and looks broken next to a stopwatch. liveT()
+   extrapolates between samples with the phone's own clock — and stops
+   dead two seconds after the data does, so a stalled link shows a
+   stopped clock rather than inventing a ride. This estimate is used for
+   the lap in progress and never for a completed one. */
+let lastSampleT = 0, lastSampleWall = 0;
+function liveT(){
+  if(!lastSampleWall) return lastSampleT;
+  return Math.min(lastSampleT + (Date.now() - lastSampleWall) / 1000,
+                  lastSampleT + 2);
+}
+
+const tenths = s => Math.floor(s / 60) + ":" + (s % 60).toFixed(1).padStart(4, "0");
+
+function lapReset(tr){
+  tr.laps = []; tr.lapCount = 0; tr.fwLaps = false; tr.lapOpenT = null;
+  tr.lapBaseRev = tr.lapBaseTick = tr.lapBaseT = null;
+  tr.lapPrevRev = tr.lapPrevTick = tr.lapPrevT = null;
+  tr.lapTick = 0; tr.lapLastWe = null;
+}
+
+function setLapMetres(m, tellLogger){
+  if(!Number.isFinite(m) || m < 0 || m > 5000) return;
+  if(m === lapMetres && !tellLogger) return;
+  lapMetres = m;
+  try{ localStorage.setItem("tl1-lapm", String(m)); }catch(e){}
+  el.lapM.value = String(m);
+  if(tellLogger) send("autolap " + m);
+  paintLaps();
+}
+
+/* A LAP HAS TO BE POSSIBLE.
+ * Found by a test fixture whose wheel counter jumped 18 km between two
+ * samples: the engine dutifully closed seventy-two boundaries inside
+ * that step, all of them under a second, and one of them became the
+ * best lap of the session. The fixture was wrong, but the exposure is
+ * real — a sensor counter reset does exactly the same thing, and so did
+ * the rev 12 bug where a session starting before the speed sensor
+ * reported logged zeros and then jumped by ten thousand revolutions.
+ *
+ * So two guards. This one rejects a lap whose implied average speed is
+ * not cycling; lapFeed has the other, which stops the jump producing
+ * laps in the first place. Both, because the first is cheap and the
+ * second cannot know about every way a counter might misbehave.
+ */
+const LAP_MAX_KMH = 120;    // the firmware clamps live speed here too
+const LAP_JUMP_M  = 1000;   // one step bigger than this is a bad counter
+
+function addLap(tr, dur, dist, tAt, src){
+  const impliedKmh = dur > 0 ? (dist / dur) * 3.6 : Infinity;
+  if(!(dur > 0.2) || impliedKmh > LAP_MAX_KMH){
+    log("ignored an impossible lap: " + Math.round(dist) + " m in " +
+        dur.toFixed(2) + " s", "er");
+    return;
+  }
+  // Peak speed inside the lap, from whatever samples this page holds.
+  // Over Bluetooth that is every other sample, so it reads a touch low
+  // on a short lap; the flash log has all of them.
+  const from = tr.laps.length ? tr.laps[tr.laps.length - 1].tAt
+                              : (tr.t.length ? tr.t[0] : 0);
+  let pk = 0;
+  const i0 = lowerBound(tr.t, from), i1 = lowerBound(tr.t, tAt);
+  for(let i = i0; i < i1; i++){
+    const v = tr.sp[i];
+    if(Number.isFinite(v) && v > pk) pk = v;
+  }
+  tr.lapCount++;
+  tr.laps.push({ n:tr.lapCount, dur, dist, tAt, pk, src,
+                 kmh: dur > 0 ? (dist / dur) * 3.6 : 0 });
+  // Three hours of twenty-second laps is 540 of them. Bounded like
+  // every other array on this page, oldest first.
+  if(tr.laps.length > 600) tr.laps.splice(0, 100);
+  tr.lapOpenT = tAt;
+  tr.markers.push({ t:tAt, kind:"lap", text:String(tr.lapCount) });
+  if(tr === T()){ paintLaps(); paintLap(); dirty = true; }
+}
+
+function lapFeed(tr, s){
+  if(!Number.isFinite(s.wr) || !Number.isFinite(s.we)) return;
+
+  // Extend the sensor's 16-bit 1/1024 s event clock, which wraps every
+  // 64 seconds. Masking the delta handles the wrap for any gap shorter
+  // than that, and a longer gap means the sensor dropped, which resets
+  // the base below anyway.
+  if(tr.lapLastWe === null) tr.lapTick = 0;
+  else tr.lapTick += ((s.we - tr.lapLastWe) & 0xFFFF);
+  tr.lapLastWe = s.we;
+
+  if(tr.lapBaseRev === null){
+    tr.lapBaseRev = s.wr; tr.lapBaseTick = tr.lapTick; tr.lapBaseT = s.t;
+    tr.lapPrevRev = s.wr; tr.lapPrevTick = tr.lapTick; tr.lapPrevT = s.t;
+    if(tr.lapOpenT === null) tr.lapOpenT = s.t;
+    return;
+  }
+  if(s.wr === tr.lapPrevRev) return;      // no new revolution reported
+
+  const circ = (tr.circ || liveTrace.circ || 2100) / 1000;
+
+  /* A WHEEL COUNTER THAT LEAPS IS NOT A FAST LAP.
+   * The count is cumulative and survives a reconnect, so a step of
+   * hundreds of revolutions between two samples means the sensor reset
+   * or the session started before it had reported. Closing a lap for
+   * every boundary in that step invents laps that never happened. The
+   * threshold allows a genuine stall — a minute out of range at 50 km/h
+   * is about 830 m and its laps are real — and rejects the rest. */
+  if((s.wr - tr.lapPrevRev) * circ > LAP_JUMP_M){
+    log("the wheel counter jumped " + Math.round((s.wr - tr.lapPrevRev) * circ) +
+        " m, so the lap was re-based rather than split", "er");
+    tr.lapBaseRev = s.wr; tr.lapBaseTick = tr.lapTick; tr.lapBaseT = s.t;
+    tr.lapPrevRev = s.wr; tr.lapPrevTick = tr.lapTick; tr.lapPrevT = s.t;
+    tr.lapOpenT = s.t;
+    return;
+  }
+
+  if(lapMetres > 0 && !tr.fwLaps){
+    const needRev = lapMetres / circ;
+    // One packet can span more than one lap after a stall, so close
+    // every boundary inside it rather than falling a lap behind for
+    // the rest of the session.
+    for(let guard = 0; guard < 16; guard++){
+      const target = tr.lapBaseRev + needRev;
+      if(s.wr < target) break;
+      const dp = tr.lapPrevRev, dc = s.wr;
+      const frac = dc > dp ? (target - dp) / (dc - dp) : 1;
+      let tx = dc > dp ? tr.lapPrevTick + frac * (tr.lapTick - tr.lapPrevTick)
+                       : tr.lapTick;
+      if(tx < tr.lapBaseTick) tx = tr.lapTick;     // never a negative lap
+      // The same interpolation on the session clock, because that is
+      // what the graph and the lap table are indexed by.
+      const sx = dc > dp ? tr.lapPrevT + frac * (s.t - tr.lapPrevT) : s.t;
+      addLap(tr, (tx - tr.lapBaseTick) / 1024, needRev * circ, sx, "page");
+      tr.lapBaseRev = target; tr.lapBaseTick = tx; tr.lapBaseT = sx;
+    }
+  }
+  tr.lapPrevRev = s.wr; tr.lapPrevTick = tr.lapTick; tr.lapPrevT = s.t;
+}
+
+function paintLap(){
+  const tr = T();
+  const open = Number.isFinite(tr.lapOpenT) ? tr.lapOpenT
+             : (tr.t.length ? tr.t[0] : 0);
+  const now = (mode === "live") ? liveT()
+            : (tr.t.length ? tr.t[tr.t.length - 1] : 0);
+  el.lapNow.textContent = tenths(Math.max(0, now - open));
+  el.lapNowLab.innerHTML = "lap <b>" + ((tr.lapCount || 0) + 1) + "</b>";
+
+  const laps = tr.laps || [];
+  el.lapLast.textContent = laps.length ? tenths(laps[laps.length - 1].dur) : "––";
+  el.lapBest.textContent = bestLap(laps) ? tenths(bestLap(laps)) : "––";
+}
+
+function bestLap(laps){
+  let best = 0;
+  // Half a second is not a lap; it is a double tap on the Lap button.
+  for(const l of laps) if(l.dur > 0.5 && (best === 0 || l.dur < best)) best = l.dur;
+  return best;
+}
+
+/* The screen you read after a set of efforts, newest first, because the
+   lap you want is the one you just did. */
+const LAP_ROWS = 60;
+function paintLaps(){
+  const tr = T();
+  const laps = tr.laps || [];
+  if(!laps.length){
+    el.lapTab.classList.add("hide");
+    el.lapsTxt.textContent = lapMetres
+      ? "No laps yet. Auto-lap is every " + lapMetres + " m."
+      : "No laps yet. Auto-lap is off, so the Lap button is the only way.";
+    return;
+  }
+  const best = bestLap(laps);
+  const rows = [];
+  for(let i = laps.length - 1; i >= 0 && rows.length < LAP_ROWS; i--){
+    const l = laps[i];
+    rows.push("<tr" + (l.dur === best ? ' class="best"' : "") +
+      "><td>" + l.n + "</td><td>" + tenths(l.dur) +
+      "</td><td>" + l.kmh.toFixed(1) +
+      "</td><td>" + (l.pk > 0 ? l.pk.toFixed(1) : "–") + "</td></tr>");
+  }
+  el.lapBody.innerHTML = rows.join("");
+  el.lapTab.classList.remove("hide");
+  const fw = laps[laps.length - 1].src === "fw";
+  el.lapsTxt.textContent =
+    laps.length + (laps.length === 1 ? " lap" : " laps") +
+    " of about " + Math.round(laps[laps.length - 1].dist) + " m, timed " +
+    (fw ? "by the logger on the wheel sensor's clock."
+        : "here from the wheel counter, interpolated across each packet.") +
+    (rows.length < laps.length ? " Showing the last " + rows.length + "." : "");
+}
+
+function paintSens(s, c, p){
+  el.sens.classList.remove("hide");
+  el.sensS.classList.toggle("on", !!s);
+  el.sensC.classList.toggle("on", !!c);
+  el.sensP.classList.toggle("on", !!p);
+  if(p) el.cPwr.classList.remove("hide");
 }
 
 /* ═══ flash panel ════════════════════════════════════════════════════════ */
@@ -950,7 +1680,15 @@ function parseSessions(lines){
       continue;
     }
     if(line[0] === "#"){
-      const m = line.match(/^# (SECTION|GEAR|MARK)\s*(\S*)/);
+      const al = line.match(/autolap=(\d+)\s*m/);
+      if(al) cur.lapM = +al[1];
+      const lm = line.match(/^# LAP (\d+)\s+t=([\d.]+)s\s+dur=([\d.]+)s\s+d=([\d.]+)m/);
+      if(lm){
+        if(!cur.fwLaps){ cur.fwLaps = true; cur.laps = []; }
+        cur.lapCount = +lm[1] - 1;
+        addLap(cur, +lm[3], +lm[4], +lm[2], "fw");
+      }
+      const m = line.match(/^# (SECTION|GEAR|MARK|LAP)\s*(\S*)/);
       if(m){
         const tm = line.match(/t=([\d.]+)s/);
         cur.markers.push({
@@ -965,7 +1703,13 @@ function parseSessions(lines){
     const cols = cur.cols || colsFromWidth(f.length);
     if(!cols) continue;
     const s = parseSample(f, cols);
-    if(s) pushSample(cur, s, REVIEW_CAP);
+    if(s){
+      pushSample(cur, s, REVIEW_CAP);
+      // Laps for a session recorded before laps existed. The wheel
+      // columns carry the sensor's own clock, so an old flash log can
+      // be timed as accurately now as a new one.
+      lapFeed(cur, s);
+    }
   }
   return out.filter(s=>s.t.length > 1);
 }
@@ -1008,8 +1752,18 @@ function showSessions(sessions){
       viewSpan = Math.max(10, dur * 1.05);
       viewEnd  = s.t[s.t.length - 1];
       follow = false; el.follow.classList.remove("on");
-      el.save.disabled = false;
+      el.save.disabled = false; el.tcx.disabled = false;
+      refreshStartInput();
+      // A reviewed session has no live section, so the peaks describe
+      // the whole of it. Scanned once here rather than tracked.
+      secT0 = s.t[0]; secWr0 = s.wr0; secName = "";
+      secMaxSp = s.maxSp || 0;
+      secMaxCd = 0;
+      for(const v of s.cd) if(Number.isFinite(v) && v > secMaxCd) secMaxCd = v;
+      paintPeaks();
       paintCounters();
+      paintLaps();
+      paintLap();
       dirty = true;
     };
     el.sessions.appendChild(b);
@@ -1019,6 +1773,7 @@ function showSessions(sessions){
 
 function backToLive(){
   mode = "live"; reviewTrace = null;
+  paintLaps(); paintLap();
   el.reviewRow.classList.add("hide");
   [...el.sessions.children].forEach(x=>x.classList.remove("on"));
   el.badge.textContent = "Live";
@@ -1048,6 +1803,10 @@ function syncRec(){
   el.rec.classList.toggle("primary", !shown);
   el.rec.classList.toggle("on", shown);
   el.rec.classList.toggle("pending", pendingRec !== null);
+  // The hairline across the top bar follows the CONFIRMED state, not the
+  // optimistic one. The button can show what you asked for; the rule
+  // must only ever mean the logger is actually capturing.
+  document.body.classList.toggle("rec", recording);
 }
 
 // Called when the logger tells us what actually happened.
@@ -1079,6 +1838,43 @@ function ack(btn){
   btn.classList.add("ack");
 }
 const tap = (btn, cmd)=>{ btn.onclick = ()=>{ ack(btn); send(cmd); }; };
+
+/* Lap. rev 16 answers with a `# LAP` marker and that is what gets
+   recorded. Older firmware answers "unknown command", so if no marker
+   arrives shortly the page closes the lap itself rather than leaving a
+   button that visibly does nothing. */
+let awaitFwLap = 0;
+el.btnLap.onclick = ()=>{
+  ack(el.btnLap);
+  send("lap");
+  awaitFwLap = Date.now();
+  setTimeout(()=>{
+    if(!awaitFwLap) return;
+    awaitFwLap = 0;
+    if(liveTrace.fwLaps) return;
+    manualLap(liveTrace);
+  }, 2500);
+};
+
+function manualLap(tr){
+  if(tr.lapBaseRev === null || !tr.t.length) return;
+  const circ = (tr.circ || liveTrace.circ || 2100) / 1000;
+  const tAt = tr.t[tr.t.length - 1];
+  addLap(tr, (tr.lapPrevTick - tr.lapBaseTick) / 1024,
+             (tr.lapPrevRev - tr.lapBaseRev) * circ, tAt, "page");
+  tr.lapBaseRev = tr.lapPrevRev;
+  tr.lapBaseTick = tr.lapPrevTick;
+  tr.lapBaseT = tAt;
+}
+
+el.autolap.onclick = ()=>{
+  const v = parseInt(el.lapM.value, 10);
+  if(!(Number.isFinite(v) && v >= 0 && v <= 5000)){ el.lapM.focus(); return; }
+  if(v !== 0 && v < 50){ el.lapM.focus(); return; }
+  ack(el.autolap);
+  setLapMetres(v, true);
+  el.lapM.blur();
+};
 
 tap(el.mark,   "mark");
 tap(el.status, "status");
@@ -1151,13 +1947,172 @@ el.save.onclick = ()=>{
   const head = tr.rawCut
     ? "# NOTE: this page trimmed its oldest lines to stay within memory.\n" +
       "# The complete session is still on the logger, use dump or tail.\n" : "";
-  const blob = new Blob([head + tr.raw.join("\n") + "\n"], { type:"text/csv" });
+  download(new Blob([head + tr.raw.join("\n") + "\n"], { type:"text/csv" }),
+           "tl1-" + tag + "-" + stamp + ".csv");
+};
+
+/* ═══ TCX export, for Strava ═════════════════════════════════════════════
+   WHY THERE IS NO UPLOAD BUTTON HERE.
+
+   Strava's OAuth has no PKCE flow: exchanging the authorisation code for
+   a token requires the client secret. This page is static and public, so
+   any secret in it is a secret anybody can read from view-source, and a
+   leaked Strava client secret lets a stranger act as this application
+   against every user who ever authorised it. There is no version of that
+   which is safe, so the page does not pretend to offer it.
+
+   What it does instead is write the file Strava accepts. Upload it by
+   hand at strava.com/upload, or drop it into the Pi's existing
+   stravaup.py, which already holds credentials somewhere private and is
+   the right place for them.
+
+   TCX is picky. The schema fixes the order of children, so these are
+   emitted in exactly the order the XSD declares and not a convenient
+   one: a Lap is TotalTimeSeconds, DistanceMeters, MaximumSpeed,
+   Calories, Intensity, Cadence, TriggerMethod, Track. A Trackpoint is
+   Time, DistanceMeters, Cadence, Extensions. Calories, Intensity and
+   TriggerMethod are required even when meaningless for a track session.
+   Strava confirms GPS is optional but a time on every trackpoint is not.
+*/
+const xmlEsc = s => String(s).replace(/[<>&'"]/g,
+  c => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;", "'":"&apos;", '"':"&quot;" }[c]));
+
+function toTcx(tr, startMs){
+  const n = tr.t.length;
+  if(!n) return null;
+  const circ = (tr.circ || liveTrace.circ || 2100) / 1000;
+  const iso = ms => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const t0 = tr.t[0];
+
+  // Distance accumulates from the first REAL wheel reading. Rows before
+  // the sensor reported carry no counter, so they hold the last known
+  // distance rather than inventing a zero and a jump.
+  /* ONE TRACKPOINT PER SECOND, summarised from all four samples in it.
+   *
+   * The log runs at 4 Hz but TCX timestamps are conventionally whole
+   * seconds, so emitting every sample gave four trackpoints sharing one
+   * timestamp, which no reader can make sense of. It also makes a three
+   * hour session roughly 43,000 trackpoints and a 9 MB file, for data
+   * Strava downsamples to 1 Hz on arrival anyway.
+   *
+   * So: one point per second carrying the last reading in that second,
+   * while distance, maximum speed and average cadence are still
+   * computed across every sample. Nothing is lost from the summary, and
+   * the full resolution lives in the CSV and on the logger's flash.
+   */
+  let base = Number.isFinite(tr.wr0) ? tr.wr0 : NaN;
+  let dist = 0, maxSpeed = 0, cadSum = 0, cadN = 0;
+  const pts = [];
+  let lastSec = -1;
+
+  for(let i = 0; i < n; i++){
+    const wr = tr.wr[i];
+    if(Number.isFinite(wr)){
+      if(!Number.isFinite(base)) base = wr;
+      if(wr >= base) dist = (wr - base) * circ;
+    }
+    const sp = tr.sp[i];
+    const mps = Number.isFinite(sp) ? sp / 3.6 : NaN;
+    if(Number.isFinite(mps) && mps > maxSpeed) maxSpeed = mps;
+
+    const cd = tr.cd[i];
+    let cadence = null;
+    if(Number.isFinite(cd)){
+      cadence = Math.max(0, Math.min(254, Math.round(cd)));
+      cadSum += cadence; cadN++;
+    }
+    const pw = tr.pw[i];
+
+    const sec = Math.floor(tr.t[i] - t0);
+    if(sec === lastSec && i !== n - 1) continue;   // always keep the last
+    lastSec = sec;
+
+    let x = "   <Trackpoint>\n";
+    x += "    <Time>" + iso(startMs + (tr.t[i] - t0) * 1000) + "</Time>\n";
+    x += "    <DistanceMeters>" + dist.toFixed(2) + "</DistanceMeters>\n";
+    if(cadence !== null) x += "    <Cadence>" + cadence + "</Cadence>\n";
+    if(Number.isFinite(mps) || Number.isFinite(pw)){
+      x += "    <Extensions><ns3:TPX>";
+      if(Number.isFinite(mps)) x += "<ns3:Speed>" + mps.toFixed(3) + "</ns3:Speed>";
+      if(Number.isFinite(pw))  x += "<ns3:Watts>" + Math.round(pw) + "</ns3:Watts>";
+      x += "</ns3:TPX></Extensions>\n";
+    }
+    x += "   </Trackpoint>\n";
+    pts.push(x);
+  }
+
+  const dur = tr.t[n - 1] - t0;
+  const avgCad = cadN ? Math.round(cadSum / cadN) : null;
+  const id = iso(startMs);
+
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+'<TrainingCenterDatabase\n' +
+' xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"\n' +
+' xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"\n' +
+' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n' +
+' xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 ' +
+'http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">\n' +
+' <Activities>\n' +
+'  <Activity Sport="Biking">\n' +
+'   <Id>' + id + '</Id>\n' +
+'   <Lap StartTime="' + id + '">\n' +
+'    <TotalTimeSeconds>' + dur.toFixed(2) + '</TotalTimeSeconds>\n' +
+'    <DistanceMeters>' + dist.toFixed(2) + '</DistanceMeters>\n' +
+'    <MaximumSpeed>' + maxSpeed.toFixed(3) + '</MaximumSpeed>\n' +
+'    <Calories>0</Calories>\n' +
+'    <Intensity>Active</Intensity>\n' +
+(avgCad !== null ? '    <Cadence>' + avgCad + '</Cadence>\n' : '') +
+'    <TriggerMethod>Manual</TriggerMethod>\n' +
+'    <Track>\n' + pts.join("") + '    </Track>\n' +
+'   </Lap>\n' +
+'   <Creator xsi:type="Device_t">\n' +
+'    <Name>' + xmlEsc("TL-1 track logger") + '</Name>\n' +
+'    <UnitId>0</UnitId>\n' +
+'    <ProductID>1</ProductID>\n' +
+'    <Version><VersionMajor>1</VersionMajor><VersionMinor>0</VersionMinor>' +
+'<BuildMajor>0</BuildMajor><BuildMinor>0</BuildMinor></Version>\n' +
+'   </Creator>\n' +
+'  </Activity>\n' +
+' </Activities>\n' +
+'</TrainingCenterDatabase>\n';
+}
+
+// datetime-local wants local wall time with no zone, so the offset has
+// to come off before formatting or the picker shows the wrong hour.
+const toLocalInput = ms =>
+  new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+function suggestStart(tr){
+  if(tr && Number.isFinite(tr.wallStart)) return tr.wallStart;
+  // An imported or restored session carries no wall clock, so the best
+  // honest guess is that it finished about now.
+  const dur = tr && tr.t.length ? (tr.t[tr.t.length - 1] - tr.t[0]) * 1000 : 0;
+  return Date.now() - dur;
+}
+function refreshStartInput(){
+  try{ el.startAt.value = toLocalInput(suggestStart(T())); }catch(e){}
+}
+
+el.tcx.onclick = ()=>{
+  const tr = T();
+  if(!tr.t.length){ log("no samples to export", "er"); return; }
+  let startMs = Date.parse(el.startAt.value);
+  if(!Number.isFinite(startMs)) startMs = suggestStart(tr);
+  const xml = toTcx(tr, startMs);
+  if(!xml){ log("nothing to export", "er"); return; }
+  const stamp = toLocalInput(startMs).replace(/[:T]/g, "-");
+  download(new Blob([xml], { type:"application/vnd.garmin.tcx+xml" }),
+           "tl1-" + stamp + ".tcx");
+  log("exported " + tr.t.length + " trackpoints as TCX, upload at strava.com/upload", "mk");
+};
+
+function download(blob, name){
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "tl1-" + tag + "-" + stamp + ".csv";
+  a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 5000);
-};
+}
 
 /* Open a CSV saved earlier, so a session can be reviewed at home with no
    logger in the room. It is the same parser the live import uses, so
@@ -1188,42 +2143,122 @@ el.fileIn.onchange = async ()=>{
    can throw or come back empty, so every access is wrapped and nothing
    depends on it succeeding. */
 const SNAP_KEY = "tl1-live-snapshot";
-const SNAP_MAX = 12000;        // lines; roughly 550 KB, well inside quota
 
-function saveSnapshot(){
-  if(!liveTrace.raw.length) return;
+/* SIZE AND FREQUENCY BOTH MATTER, AND v5 GOT BOTH WRONG.
+ * localStorage.setItem is synchronous: it blocks the main thread until
+ * the write completes. v5 stringified up to 12,000 lines and wrote them
+ * every 5 seconds, so a long session spent a visible fraction of its
+ * time frozen, building a six-figure string and handing it to the disk.
+ * On an eight-minute bench session that is around a hundred stalls.
+ *
+ * This is insurance against the tab being killed, not an archive. The
+ * logger's flash has the complete session either way, and `tail` can
+ * fetch any of it back. So: a quarter of the lines, a third as often,
+ * joined with \n instead of JSON, and skipped entirely when nothing has
+ * changed since the last write. */
+const SNAP_MAX  = 3000;        // lines, roughly 140 KB
+const SNAP_MS   = 15000;
+const DONE_KEY  = "tl1-last-session";
+let snapAt = -1;               // raw.length at the last successful write
+
+/* TWO SLOTS, NOT ONE.
+ * A single slot meant starting a second session immediately overwrote
+ * the recovery data for the first, which is the exact moment you are
+ * most likely to want it: you finished a ride, pressed Record again out
+ * of habit, and the thing you had not saved yet was gone. The live slot
+ * is scratch and churns constantly. The done slot is written once, when
+ * a session ends, and nothing else touches it. */
+function packSnapshot(lines, cut){
+  return (cut ? "1" : "0") + "\n" + Date.now() + "\n" + lines.join("\n");
+}
+function unpackSnapshot(raw){
+  if(!raw) return null;
+  const h1 = raw.indexOf("\n");
+  const h2 = raw.indexOf("\n", h1 + 1);
+  if(h1 < 0 || h2 < 0) return null;
+  const at = +raw.slice(h1 + 1, h2);
+  const lines = raw.slice(h2 + 1).split("\n").filter(Boolean);
+  if(!lines.length || !Number.isFinite(at)) return null;
+  return { cut: raw.slice(0, h1) === "1", at, lines };
+}
+
+function saveSnapshot(force){
+  const n = liveTrace.raw.length;
+  if(!n) return;
+  if(n === snapAt && !force) return;
   try{
-    localStorage.setItem(SNAP_KEY, JSON.stringify({
-      at: Date.now(),
-      lines: liveTrace.raw.slice(-SNAP_MAX),
-      cut: liveTrace.rawCut || liveTrace.raw.length > SNAP_MAX,
-    }));
+    const lines = n > SNAP_MAX ? liveTrace.raw.slice(-SNAP_MAX) : liveTrace.raw;
+    localStorage.setItem(SNAP_KEY, packSnapshot(lines, liveTrace.rawCut || n > SNAP_MAX));
+    snapAt = n;
   }catch(e){ /* quota, private mode, whatever. Flash still has it. */ }
 }
-function clearSnapshot(){ try{ localStorage.removeItem(SNAP_KEY); }catch(e){} }
+function clearSnapshot(){ try{ localStorage.removeItem(SNAP_KEY); }catch(e){} snapAt = -1; }
 
-setInterval(()=>{ if(recording) saveSnapshot(); }, 5000);
+// Promote the finished session to the slot nothing overwrites.
+function archiveSession(){
+  const n = liveTrace.raw.length;
+  if(!n) return;
+  try{
+    const lines = n > SNAP_MAX ? liveTrace.raw.slice(-SNAP_MAX) : liveTrace.raw;
+    localStorage.setItem(DONE_KEY, packSnapshot(lines, liveTrace.rawCut || n > SNAP_MAX));
+  }catch(e){}
+}
+
+setInterval(()=>{ if(recording) saveSnapshot(); }, SNAP_MS);
+
+/* THE TIMER IS NOT ENOUGH, because the tab is not killed at a moment of
+ * its choosing. iOS reclaims a backgrounded WKWebView without warning,
+ * and the last thing the page reliably gets is a visibility change or a
+ * pagehide. Writing on both means the worst case is losing whatever
+ * arrived after you put the phone in your pocket, instead of up to
+ * fifteen seconds of a ride.
+ *
+ * `force` is passed because the dedup compares against the last write,
+ * and at these moments a write that merely repeats is still worth the
+ * two milliseconds. beforeunload is deliberately absent: iOS fires it
+ * unreliably and pagehide covers the same ground. */
+for(const ev of ["pagehide", "freeze"])
+  window.addEventListener(ev, ()=>{ if(liveTrace.raw.length) saveSnapshot(true); });
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "hidden" && liveTrace.raw.length) saveSnapshot(true);
+});
 
 (function offerRecovery(){
-  let s = null;
+  let live = null, done = null;
   try{
-    const raw = localStorage.getItem(SNAP_KEY);
-    if(raw) s = JSON.parse(raw);
+    live = unpackSnapshot(localStorage.getItem(SNAP_KEY));
+    done = unpackSnapshot(localStorage.getItem(DONE_KEY));
   }catch(e){ return; }
-  if(!s || !Array.isArray(s.lines) || s.lines.length < 5) return;
 
-  const mins = Math.round((Date.now() - (s.at || 0)) / 60000);
-  el.recoverTxt.textContent = s.lines.length + " lines, last written " +
+  // Prefer whichever is newer, so a crash mid-session beats a stale
+  // finished one and vice versa.
+  const pick = (!done) ? live : (!live) ? done : (live.at >= done.at ? live : done);
+  if(!pick || pick.lines.length < 5) return;
+
+  const mins = Math.round((Date.now() - pick.at) / 60000);
+  const other = (live && done && pick !== (live.at >= done.at ? live : done)) ? null
+              : (live && done ? (pick === live ? done : live) : null);
+  el.recoverTxt.textContent =
+    pick.lines.length + " lines, last written " +
     (mins < 1 ? "under a minute" : mins + " min") + " ago." +
-    (s.cut ? " Older lines were trimmed; the logger has the full session." : "");
+    (pick.cut ? " Older lines were trimmed; the logger has the full session." : "") +
+    (other ? " An older copy is also held." : "");
   el.recover.classList.remove("hide");
 
   el.doRecover.onclick = ()=>{
     el.recover.classList.add("hide");
-    try{ showSessions(parseSessions(s.lines)); log("restored " + s.lines.length + " lines", "mk"); }
-    catch(e){ log("could not restore: " + e.message, "er"); }
+    try{
+      const sessions = parseSessions(pick.lines)
+        .concat(other ? parseSessions(other.lines) : []);
+      showSessions(sessions);
+      log("restored " + pick.lines.length + " lines", "mk");
+    }catch(e){ log("could not restore: " + e.message, "er"); }
   };
-  el.doDiscard.onclick = ()=>{ el.recover.classList.add("hide"); clearSnapshot(); };
+  el.doDiscard.onclick = ()=>{
+    el.recover.classList.add("hide");
+    clearSnapshot();
+    try{ localStorage.removeItem(DONE_KEY); }catch(e){}
+  };
 })();
 
 /* Gap handling. A dropped link while recording means the phone missed
@@ -1374,19 +2409,37 @@ function draw(){
     ctx.fillText(mmss(t), x, PAD.t + ph + 5);
   }
 
+  let lastLabelX = -999;
   for(const mk of tr.markers){
     if(mk.t < t0 || mk.t > t1) continue;
     const x = X(mk.t);
+    /* Laps get a line and no label. There are dozens of them in a
+       session and a rotated number beside each one turned the plot into
+       a comb; the lap TABLE is where the numbers belong. */
+    if(mk.kind === "lap"){
+      ctx.strokeStyle = C.sprint; ctx.globalAlpha = .26; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x + .5, PAD.t); ctx.lineTo(x + .5, PAD.t + ph);
+      ctx.stroke(); ctx.globalAlpha = 1;
+      continue;
+    }
     const strong = mk.kind === "gear" || mk.kind === "section";
     ctx.strokeStyle = strong ? C.pine : C.dim;
     ctx.globalAlpha = .5; ctx.setLineDash(strong ? [] : [3, 3]);
     ctx.beginPath(); ctx.moveTo(x + .5, PAD.t); ctx.lineTo(x + .5, PAD.t + ph); ctx.stroke();
     ctx.setLineDash([]); ctx.globalAlpha = 1;
-    ctx.save(); ctx.translate(x + 4, PAD.t + 4); ctx.rotate(Math.PI / 2);
-    ctx.fillStyle = strong ? C.pine : C.dim;
-    ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(mk.text || mk.kind, 0, 0);
-    ctx.restore();
+    /* Every marker gets its line. Not every marker gets its label:
+       three "effort" markers inside twenty pixels drew three rotated
+       words on top of each other and on top of the trace, which is
+       worse than not labelling them at all. The line still says a
+       marker is there and the Stream pane says what it was. */
+    if(x - lastLabelX > 15){
+      lastLabelX = x;
+      ctx.save(); ctx.translate(x + 4, PAD.t + 4); ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = strong ? C.pine : C.dim;
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillText(mk.text || mk.kind, 0, 0);
+      ctx.restore();
+    }
   }
 
   const i0 = lowerBound(tr.t, t0 - 1);
@@ -1497,13 +2550,41 @@ window.TL1 = {
   feedText: t => t.split("\n").forEach(l=>handleLine(l.replace(/\r$/, ""))),
   parseSessions, showSessions,
   get live(){ return liveTrace; },
-  get shown(){ return T(); },
+  get shown(){ return T(); }, saveSnapshot, toTcx, archiveSession,
+  lapFeed, addLap, lapReset, paintLap, paintLaps,
+  get lapMetres(){ return lapMetres; }, setLapMetres,
 };
 
 $("ver").textContent = PAGE_VER;
 log("— TL-1 receiver " + PAGE_VER + " —", "mk");
 
-resize(); syncRec(); paintFlash(); paintCounters();
+el.lapM.value = String(lapMetres);
+resize(); syncRec(); paintFlash(); paintCounters(); refreshStartInput();
+paintLink(); paintAwake(); paintLaps(); paintLap();
+
+/* The running lap clock, in tenths, which is the only thing on this
+   page that needs painting faster than samples arrive. Three short text
+   nodes ten times a second, and only while there is a lap running. */
+setInterval(()=>{
+  if(mode === "live" && recording) paintLap();
+}, 100);
+
+/* RECONNECT WITH NO TAP AT ALL, where the browser allows it. This is
+   the whole point of remembering the device: you open the app at the
+   track and it is already connected, rather than opening it, tapping
+   Connect, and picking TL-1 out of a list of every radio in the
+   building. Browsers without getDevices() land on the catch and show
+   Connect, which is where v7 always started. */
+(async function autoConnect(){
+  if(!navigator.bluetooth) return;
+  const known = await knownDevice();
+  if(!known) return;
+  log("reconnecting to " + (known.name || "TL-1") + " from last time", "mk");
+  attach(known);
+  wantLink = true; retry = 0; waitSince = Date.now();
+  paintLink();
+  tryOpen();
+})();
 </script>
 </body>
 </html>
