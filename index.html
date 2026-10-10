@@ -1980,6 +1980,16 @@ const xmlEsc = s => String(s).replace(/[<>&'"]/g,
 function toTcx(tr, startMs){
   const n = tr.t.length;
   if(!n) return null;
+  /* FLOORED TO A WHOLE SECOND, AND THAT IS LOAD-BEARING.
+     Trackpoints are bucketed by Math.floor(t - t0) below but printed
+     as the truncated ISO form of startMs + (t - t0). Those two
+     partitions agree only when startMs lands on an exact second;
+     otherwise a bucket can straddle a wall-clock second and two
+     trackpoints come out sharing a timestamp, which Strava rejects.
+     Flooring makes floor(start + x) === start + floor(x), so they
+     cannot disagree. Found on the Pi, which has the same logic and
+     had been passing its test on the luck of the clock. */
+  startMs = Math.floor(startMs / 1000) * 1000;
   const circ = (tr.circ || liveTrace.circ || 2100) / 1000;
   const iso = ms => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
   const t0 = tr.t[0];

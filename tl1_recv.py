@@ -224,7 +224,20 @@ class Session:
             return dt.datetime.fromtimestamp(
                 ts, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        start_epoch = self.started_at.timestamp()
+        # FLOORED TO A WHOLE SECOND, AND THAT IS LOAD-BEARING.
+        # Trackpoints are bucketed by int(t - t0) below but printed as
+        # floor(start + t - t0). Those two partitions only agree when
+        # start lands exactly on a second: otherwise one bucket can
+        # straddle a wall-clock second and two trackpoints come out
+        # carrying the same timestamp, which Strava will not accept.
+        # Flooring start makes floor(start + x) == start + floor(x) by
+        # construction, so the two can no longer disagree.
+        #
+        # This passed twice before it failed, because whether it breaks
+        # depends on the fractional part of the clock at the moment the
+        # session started. A test that only fails sometimes is worse
+        # than one that always does.
+        start_epoch = float(int(self.started_at.timestamp()))
         dist = 0.0
         max_mps = 0.0
         cad_sum = cad_n = 0
