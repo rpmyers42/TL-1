@@ -1,0 +1,45 @@
+# TL-1 receiver, as a service on the Pi.
+#
+#   sudo cp tl1-recv.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now tl1-recv
+#   journalctl -u tl1-recv -f          # watch it
+#
+# Edit User= and the paths if your Pi account is not `pi`. Nothing here
+# needs root: BlueZ talks to an ordinary user over D-Bus, and running a
+# network-facing logger as root to save one line of configuration is a
+# bad trade.
+#
+# --strava is deliberately NOT on by default. Turn it on once you have
+# run `tl1_recv.py --strava-setup` and seen a session upload by hand,
+# so the first automatic upload is not also the first upload.
+
+[Unit]
+Description=TL-1 track logger receiver
+# Bluetooth, not network: this never needs the internet unless it is
+# uploading, and it should still start and log at a velodrome with no
+# signal at all.
+After=bluetooth.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/python3 /home/pi/tl1/tl1_recv.py --dir /home/pi/tl1/logs --quiet
+
+# It should come back from anything. A receiver that died quietly at
+# 6pm and was discovered at 9pm has lost the whole session.
+Restart=always
+RestartSec=5
+
+# The process writes logs and reads one credentials file, and has no
+# business anywhere else on the disk.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/tl1
+
+[Install]
+WantedBy=multi-user.target
